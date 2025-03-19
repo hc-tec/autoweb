@@ -1,0 +1,92 @@
+[
+    {
+        "block": "StartBlock",
+        "name": "开始块"
+    },
+    {
+        "block": "OpenPageBlock",
+        "name": "打开网站",
+        "page_url": "https://www.runoob.com/"
+    },
+    {
+        "block": "ExtractDataBlock",
+        "name": "提取网站标题",
+        "use_relative_xpath": "False",
+        "fields": [
+            {
+                "name": "网站",
+                "xpath": "/html/body/div[4]/div/div[2]/div[1]/h2",
+                "default_value": "default",
+                "field_extractor": "TextFieldExtractor"
+            }
+        ]
+    },
+    {
+        "block": "LoopBlock",
+        "name": "循环获取教程列表",
+        "loop_type": {
+            "name": "固定循环",
+            "type": "FixedLoopType",
+            "values": [
+                "/html/body/div[4]/div/div[2]/div[1]/a[1]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[2]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[3]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[4]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[5]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[6]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[7]"
+            ]
+        },
+        "inners": [
+            {
+                "block": "IfBlock",
+                "name": "判断是否为CSS教程",
+                "inners": [
+                    {
+                        "block": "ExecJavaScriptConditionBlock",
+                        "name": "执行脚本-判断是否为CSS教程",
+                        "js_script": "return arguments[0].innerText.includes('CSS')",
+                        "inners": [
+                            {
+                                "block": "ExtractDataBlock",
+                                "name": "提取数据",
+                                "use_relative_xpath": "True",
+                                "fields": [
+                                    {
+                                        "name": "标题",
+                                        "xpath": "/h4",
+                                        "field_extractor": "TextFieldExtractor"
+                                    },
+                                    {
+                                        "name": "内容",
+                                        "xpath": "/strong",
+                                        "field_extractor": "TextFieldExtractor"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "block": "PassConditionBlock",
+                        "name": "无条件",
+                        "inners": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "block": "EndBlock",
+        "name": "结束块",
+        "inners": []
+    }
+]
+
+
+
+
+
+
+
+
+

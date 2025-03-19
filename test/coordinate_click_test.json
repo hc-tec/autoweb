@@ -1,0 +1,41 @@
+[
+    {
+        "block": "StartBlock",
+        "name": "开始块"
+    },
+    {
+        "block": "OpenPageBlock",
+        "name": "打开网站",
+        "page_url": "https://www.xiaohongshu.com/explore",
+        "fullscreen": true
+    },
+    {
+        "block": "ClickElementBlock",
+        "name": "点击创作中心",
+        "coordinates": [0.9, 0.06],
+        "breakpoint": true
+    },
+    {
+        "block": "ClickElementBlock",
+        "name": "通过坐标点击",
+        "coordinates": [0.9, 0.1],
+        "breakpoint": true
+    },
+    {
+        "block": "ClickElementBlock",
+        "name": "点击上传图文",
+        "coordinates": [0.24, 0.17],
+        "breakpoint": true
+    },
+    {
+        "block": "ClickElementBlock",
+        "name": "点击选择文件",
+        "coordinates": [0.58, 0.59],
+        "breakpoint": true
+    },
+    {
+        "block": "EndBlock",
+        "name": "结束块",
+        "inners": []
+    }
+] 

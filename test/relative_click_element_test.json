@@ -1,0 +1,54 @@
+[
+    {
+        "block": "StartBlock",
+        "name": "开始块"
+    },
+    {
+        "block": "OpenPageBlock",
+        "name": "打开网站",
+        "page_url": "https://www.runoob.com/"
+    },
+    {
+        "block": "LoopBlock",
+        "name": "循环点击链接",
+        "loop_type": {
+            "name": "固定循环",
+            "type": "FixedLoopType",
+            "values": [
+                "/html/body/div[4]/div/div[2]/div[1]/a[1]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[2]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[3]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[4]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[5]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[6]",
+                "/html/body/div[4]/div/div[2]/div[1]/a[7]"
+            ]
+        },
+        "inners": [
+            {
+                "block": "ClickElementBlock",
+                "name": "点击按钮",
+                "xpath": "",
+                "use_relative_xpath": "True"
+            },
+            {
+                "block": "RollbackBlock",
+                "name": "回退"
+            }
+        ]
+    },
+    {
+        "block": "EndBlock",
+        "name": "结束块",
+        "inners": []
+    }
+]
+
+
+
+
+
+
+
+
+

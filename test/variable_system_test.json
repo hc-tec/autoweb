@@ -1,0 +1,73 @@
+{
+  "variables": {
+    "search_keyword": {
+      "type": "STRING",
+      "value": "Python教程",
+      "scope": "GLOBAL",
+      "description": "搜索关键词"
+    },
+    "results": {
+      "type": "LIST",
+      "value": [],
+      "scope": "GLOBAL",
+      "description": "搜索结果列表"
+    },
+    "result_count": {
+      "type": "NUMBER",
+      "value": 0,
+      "scope": "GLOBAL",
+      "description": "结果数量"
+    }
+  },
+  "flow": [
+    {
+      "block": "StartBlock",
+      "name": "开始任务",
+      "breakpoint": false
+    },
+    {
+      "block": "OpenPageBlock",
+      "name": "打开菜鸟教程",
+      "url": "https://www.runoob.com/",
+      "wait_time": 1.0,
+      "input_variables": ["search_keyword"],
+      "output_variables": []
+    },
+    {
+      "block": "InputBlock",
+      "name": "搜索关键词",
+      "xpath": "/html/body/div[1]/div/div[1]/div/div[1]/div/form/input",
+      "text": "",
+      "input_variables": ["search_keyword"],
+      "output_variables": []
+    },
+    {
+      "block": "ClickElementBlock",
+      "name": "点击搜索按钮",
+      "xpath": "/html/body/div[1]/div/div[1]/div/div[1]/div/form/button",
+      "wait_time": 1.0
+    },
+    {
+      "block": "ExtractDataBlock",
+      "name": "提取搜索结果",
+      "output_variables": ["results", "result_count"],
+      "fields": [
+        {
+          "name": "标题",
+          "xpath": "/html/body/div[3]/div/div[2]/div/div/ul/li/div/div/h2/a",
+          "extractor_type": "TextFieldExtractor"
+        },
+        {
+          "name": "摘要",
+          "xpath": "/html/body/div[3]/div/div[2]/div/div/ul/li/div/div/p",
+          "extractor_type": "TextFieldExtractor"
+        }
+      ]
+    },
+    {
+      "block": "EndBlock",
+      "name": "结束任务",
+      "input_variables": ["results", "result_count"]
+    }
+  ]
+} 
