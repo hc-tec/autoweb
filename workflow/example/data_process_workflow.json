@@ -1,0 +1,352 @@
+{
+    "module_id": "main_pipeline",
+    "module_type": "composite",
+    "meta": {
+      "title": "主数据处理流水线",
+      "description": "包含数据采集、处理和验证的完整流水线",
+      "category": "pipeline"
+    },
+    "inputs": {
+      "input_defs": [
+        {
+          "name": "initial_data",
+          "type": "string",
+          "description": "初始输入数据",
+          "required": true
+        }
+      ],
+      "input_parameters": []
+    },
+    "outputs": {
+      "output_defs": [
+        {
+          "name": "validation_result",
+          "type": "string",
+          "description": "最终验证结果"
+        },
+        {
+          "name": "is_valid",
+          "type": "boolean",
+          "description": "最终验证状态"
+        }
+      ]
+    },
+    "modules": [
+      {
+        "module_id": "data_collection",
+        "module_type": "composite",
+        "meta": {
+          "title": "数据采集阶段",
+          "description": "负责数据的采集和初步处理",
+          "category": "stage"
+        },
+        "inputs": {
+          "input_defs": [
+            {
+              "name": "data",
+              "type": "string",
+              "description": "原始数据",
+              "required": true
+            }
+          ],
+          "input_parameters": [
+            {
+              "name": "data",
+              "input": {
+                "type": "string",
+                "value": {
+                  "type": "ref",
+                  "content": {
+                    "moduleID": "main_pipeline",
+                    "name": "initial_data",
+                    "source": "block-output"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "outputs": {
+          "output_defs": [
+            {
+              "name": "processed_data",
+              "type": "string",
+              "description": "处理后的数据"
+            }
+          ]
+        },
+        "modules": [
+          {
+            "module_id": "data_provider",
+            "module_type": "atomic",
+            "meta": {
+              "title": "数据提供者",
+              "description": "提供数据",
+              "category": "data"
+            },
+            "inputs": {
+              "input_defs": [
+                {
+                  "name": "data",
+                  "type": "string",
+                  "description": "输入数据",
+                  "required": true
+                }
+              ],
+              "input_parameters": [
+                {
+                  "name": "data",
+                  "input": {
+                    "type": "string",
+                    "value": {
+                      "type": "ref",
+                      "content": {
+                        "moduleID": "data_collection",
+                        "name": "data",
+                        "source": "block-output"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "outputs": {
+              "output_defs": [
+                {
+                  "name": "data",
+                  "type": "string",
+                  "description": "提供的数据"
+                }
+              ]
+            },
+            "config": {
+              "data": "测试数据 #123"
+            }
+          },
+          {
+            "module_id": "initial_processor",
+            "module_type": "atomic",
+            "meta": {
+              "title": "数据处理器",
+              "description": "处理接收到的数据",
+              "category": "data"
+            },
+            "inputs": {
+              "input_defs": [
+                {
+                  "name": "data",
+                  "type": "string",
+                  "description": "要处理的数据",
+                  "required": true
+                }
+              ],
+              "input_parameters": [
+                {
+                  "name": "data",
+                  "input": {
+                    "type": "string",
+                    "value": {
+                      "type": "ref",
+                      "content": {
+                        "moduleID": "data_provider",
+                        "name": "data",
+                        "source": "block-output"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "outputs": {
+              "output_defs": [
+                {
+                  "name": "processed_data",
+                  "type": "string",
+                  "description": "处理后的数据"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "module_id": "validation_stage",
+        "module_type": "composite",
+        "meta": {
+          "title": "数据验证阶段",
+          "description": "验证数据的有效性",
+          "category": "stage"
+        },
+        "inputs": {
+          "input_defs": [
+            {
+              "name": "data",
+              "type": "string",
+              "description": "要验证的数据",
+              "required": true
+            }
+          ],
+          "input_parameters": [
+            {
+              "name": "data",
+              "input": {
+                "type": "string",
+                "value": {
+                  "type": "ref",
+                  "content": {
+                    "moduleID": "data_collection",
+                    "name": "processed_data",
+                    "source": "block-output"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "outputs": {
+          "output_defs": [
+            {
+              "name": "validation_result",
+              "type": "string",
+              "description": "验证结果"
+            },
+            {
+              "name": "is_valid",
+              "type": "boolean",
+              "description": "是否有效"
+            }
+          ]
+        },
+        "modules": [
+          {
+            "module_id": "data_validator",
+            "module_type": "atomic",
+            "meta": {
+              "title": "数据验证器",
+              "description": "验证数据格式和内容",
+              "category": "validation"
+            },
+            "inputs": {
+              "input_defs": [
+                {
+                  "name": "data",
+                  "type": "string",
+                  "description": "要验证的数据",
+                  "required": true
+                }
+              ],
+              "input_parameters": [
+                {
+                  "name": "data",
+                  "input": {
+                    "type": "string",
+                    "value": {
+                      "type": "ref",
+                      "content": {
+                        "moduleID": "validation_stage",
+                        "name": "data",
+                        "source": "block-output"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "outputs": {
+              "output_defs": [
+                {
+                  "name": "validation_result",
+                  "type": "string",
+                  "description": "验证结果"
+                },
+                {
+                  "name": "is_valid",
+                  "type": "boolean",
+                  "description": "是否有效"
+                }
+              ]
+            }
+          },
+          {
+            "module_id": "error_trigger",
+            "module_type": "atomic",
+            "meta": {
+              "title": "错误事件触发器",
+              "description": "触发验证错误事件",
+              "category": "event"
+            },
+            "event_config": {
+              "event_name": "validation_error",
+              "event_data": {
+                "message": "发生验证错误"
+              }
+            },
+            "inputs": {
+              "input_defs": [],
+              "input_parameters": []
+            },
+            "outputs": {
+              "output_defs": [
+                {
+                  "name": "event_triggered",
+                  "type": "boolean",
+                  "description": "事件是否被触发"
+                }
+              ]
+            }
+          }
+        ],
+        "slots": {
+          "error_handler": {
+            "name": "error_handler",
+            "description": "处理验证错误",
+            "required": false,
+            "multiple": false,
+            "slot_type": "event",
+            "modules": [
+              {
+                "module_id": "validation_error_handler",
+                "module_type": "atomic",
+                "meta": {
+                  "title": "错误处理器",
+                  "description": "处理流水线中的错误",
+                  "category": "error"
+                },
+                "inputs": {
+                  "input_defs": [
+                    {
+                      "name": "error_message",
+                      "type": "string",
+                      "description": "错误信息",
+                      "required": true
+                    }
+                  ],
+                  "input_parameters": [
+                    {
+                      "name": "error_message",
+                      "input": {
+                        "type": "string",
+                        "value": {
+                          "type": "literal",
+                          "content": "验证过程中发生错误"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "outputs": {
+                  "output_defs": [
+                    {
+                      "name": "handled_error",
+                      "type": "string",
+                      "description": "处理后的错误信息"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }

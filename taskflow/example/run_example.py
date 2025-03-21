@@ -1,5 +1,8 @@
 import logging
+import sys
+import os
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from taskflow.control_flow import ControlFlow
 from taskflow.field_saver import FieldSaver
 from taskflow.json_flow_parser import JsonFlowParser

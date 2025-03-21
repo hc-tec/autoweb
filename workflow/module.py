@@ -2,6 +2,8 @@ from typing import Dict, List, Optional, Any, Callable, Set, Union
 from dataclasses import dataclass, field
 from .module_port import ModuleInputs, ModuleOutputs
 from .module_context import ModuleContext, ModuleExecutionResult
+from .module_types import Args, Output, CodeFunction
+import asyncio
 
 @dataclass
 class ModuleMeta:
@@ -235,7 +237,11 @@ class AtomicModule(Module):
         
         原子模块需要重写此方法，实现具体的业务逻辑
         """
-        raise NotImplementedError("AtomicModule must implement _execute_internal method")
+        return ModuleExecutionResult(
+            success=True,
+            outputs={},
+            error=None
+        )
 
 
 class SlotModule(Module):
@@ -510,12 +516,22 @@ class EventTriggerModule(AtomicModule):
 class PythonCodeModule(AtomicModule):
     """Python代码模块
     
-    Python代码模块允许用户编写Python代码来实现自定义逻辑。
+    允许用户编写Python代码来实现自定义逻辑，支持同步和异步函数。
+    代码必须包含一个名为main的函数（同步或异步），接收Args参数并返回Output。
     """
     
     def __init__(self, module_id: str, code: str = ""):
         super().__init__(module_id)
-        self.code = code
+        self.code_function: Optional[CodeFunction] = None
+        self._compiled_code = None
+        self._globals = {
+            'Args': Args,
+            'Output': Output,
+            'asyncio': asyncio
+        }
+        
+        if code:
+            self.set_code(code)
         
         # 设置元数据
         meta = ModuleMeta(
@@ -525,49 +541,94 @@ class PythonCodeModule(AtomicModule):
         )
         self.set_meta(meta)
         
-    def set_code(self, code: str):
-        """设置要执行的Python代码"""
-        self.code = code
+    def set_code(self, code: str, description: str = ""):
+        """设置要执行的Python代码
         
-    def _execute_internal(self) -> ModuleExecutionResult:
-        """执行Python代码"""
-        if not self.code:
+        Args:
+            code: Python代码文本
+            description: 代码描述
+        """
+        # 检查代码是否是异步函数
+        is_async = CodeFunction.is_async_code(code)
+        
+        # 创建代码函数定义
+        self.code_function = CodeFunction(
+            code=code,
+            is_async=is_async,
+            description=description
+        )
+        
+        # 编译代码
+        try:
+            self._compiled_code = compile(code, f'<{self.module_id}>', 'exec')
+        except Exception as e:
+            raise ValueError(f"Invalid Python code: {str(e)}")
+            
+    async def _execute_internal(self) -> ModuleExecutionResult:
+        """执行Python代码
+        
+        Returns:
+            执行结果
+        """
+        if not self.code_function or not self._compiled_code:
             return ModuleExecutionResult(
-                success=True,
-                outputs={}
+                success=False,
+                outputs={},
+                error="No code set for module"
             )
             
-        # 准备执行环境
-        local_vars = {}
-        
-        # 从上下文获取已解析的输入参数到本地变量
-        if self.inputs and self.inputs.inputParameters:
-            for param in self.inputs.inputParameters:
-                try:
-                    value = self.context.get_variable(self.module_id, param.name)
-                    local_vars[param.name] = value
-                except Exception as e:
-                    return ModuleExecutionResult(
-                        success=False,
-                        outputs={},
-                        error=f"Failed to get parameter {param.name}: {str(e)}"
-                    )
-        
-        # 执行代码
         try:
-            # 添加输出字典
-            local_vars['outputs'] = {}
+            # 准备执行环境
+            local_vars = {}
+            
+            # 从上下文获取输入参数
+            params = {}
+            if self.inputs and self.inputs.inputParameters:
+                for param in self.inputs.inputParameters:
+                    try:
+                        value = self.context.get_variable(self.module_id, param.name)
+                        params[param.name] = value
+                    except Exception as e:
+                        return ModuleExecutionResult(
+                            success=False,
+                            outputs={},
+                            error=f"Failed to get parameter {param.name}: {str(e)}"
+                        )
             
             # 执行代码
-            exec(self.code, {"__builtins__": __builtins__}, local_vars)
+            exec(self._compiled_code, self._globals, local_vars)
             
-            # 获取输出
-            outputs = local_vars.get('outputs', {})
+            # 获取main函数
+            main_func = local_vars.get('main')
+            if not main_func:
+                return ModuleExecutionResult(
+                    success=False,
+                    outputs={},
+                    error="No main function defined in code"
+                )
+                
+            # 创建参数对象
+            args = Args(params=params)
             
+            # 执行main函数
+            if self.code_function.is_async:
+                result = await main_func(args)
+            else:
+                result = main_func(args)
+                
+            # 验证输出
+            if not isinstance(result, dict):
+                return ModuleExecutionResult(
+                    success=False,
+                    outputs={},
+                    error="Main function must return a dictionary"
+                )
+                
             return ModuleExecutionResult(
                 success=True,
-                outputs=outputs
+                outputs=result
             )
+            
         except Exception as e:
             return ModuleExecutionResult(
                 success=False,
