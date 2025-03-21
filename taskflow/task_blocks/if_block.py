@@ -1,14 +1,14 @@
 import logging
+from typing import Dict, Any
 
-from taskflow.block_context import BlockContext
 from taskflow.task_blocks.block import Block, BlockExecuteParams, register_block
 from taskflow.task_blocks.condition_block import ConditionBlock
 
 
 class IfBlock(Block):
 
-    def __init__(self, name: str, context: BlockContext, **kwargs):
-        Block.__init__(self, name, context)
+    def __init__(self, params: Dict[str, Any]):
+        Block.__init__(self, params)
 
     def execute(self, params: BlockExecuteParams):
         if params.in_loop:

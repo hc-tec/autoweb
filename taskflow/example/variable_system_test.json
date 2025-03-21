@@ -28,7 +28,7 @@
     {
       "block": "OpenPageBlock",
       "name": "打开菜鸟教程",
-      "url": "https://www.runoob.com/",
+      "page_url": "https://www.runoob.com/",
       "wait_time": 1.0,
       "input_variables": ["search_keyword"],
       "output_variables": []

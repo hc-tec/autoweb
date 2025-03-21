@@ -1,0 +1,196 @@
+{
+    "module_id": "json_workflow",
+    "module_type": "composite",
+    "meta": {
+        "title": "JSON工作流示例",
+        "description": "使用JSON文件配置的工作流示例",
+        "category": "example"
+    },
+    "inputs": {
+        "input_defs": []
+    },
+    "outputs": {
+        "output_defs": []
+    },
+    "modules": [
+        {
+            "module_id": "open_page_module",
+            "module_type": "OpenPageBlock",
+            "meta": {
+                "title": "打开菜鸟教程",
+                "description": "打开菜鸟教程网站",
+                "category": "web"
+            },
+            "inputs": {
+                "input_defs": [
+                    {
+                        "name": "page_url",
+                        "type": "string",
+                        "description": "要打开的页面URL",
+                        "required": true
+                    },
+                    {
+                        "name": "fullscreen",
+                        "type": "boolean",
+                        "description": "是否全屏显示",
+                        "required": false
+                    }
+                ],
+                "input_parameters": [
+                    {
+                        "name": "page_url",
+                        "input": {
+                            "type": "string",
+                            "value": {
+                                "type": "literal",
+                                "content": "https://www.runoob.com/"
+                            }
+                        }
+                    },
+                    {
+                        "name": "fullscreen",
+                        "input": {
+                            "type": "boolean",
+                            "value": {
+                                "type": "literal",
+                                "content": true
+                            }
+                        }
+                    }
+                ]
+            },
+            "outputs": {
+                "output_defs": []
+            }
+        },
+        {
+            "module_id": "click_module",
+            "module_type": "ClickElementBlock",
+            "meta": {
+                "title": "点击搜索按钮",
+                "description": "点击搜索按钮执行搜索",
+                "category": "web"
+            },
+            "inputs": {
+                "input_defs": [
+                    {
+                        "name": "xpath",
+                        "type": "string",
+                        "description": "要点击元素的XPath",
+                        "required": true
+                    },
+                    {
+                        "name": "need_track",
+                        "type": "boolean",
+                        "description": "是否跟踪页面变化",
+                        "required": false
+                    }
+                ],
+                "input_parameters": [
+                    {
+                        "name": "xpath",
+                        "input": {
+                            "type": "string",
+                            "value": {
+                                "type": "literal",
+                                "content": "/html/body/div[4]/div/div[2]/div[1]/a[1]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "need_track",
+                        "input": {
+                            "type": "boolean",
+                            "value": {
+                                "type": "literal",
+                                "content": true
+                            }
+                        }
+                    }
+                ]
+            },
+            "outputs": {
+                "output_defs": [
+                ]
+            }
+        },
+        {
+            "module_id": "extract_module",
+            "module_type": "ExtractDataBlock",
+            "meta": {
+                "title": "提取搜索结果",
+                "description": "从搜索结果页面提取数据",
+                "category": "web"
+            },
+            "inputs": {
+                "input_defs": [
+                    {
+                        "name": "fields",
+                        "type": "array",
+                        "description": "要提取的字段定义",
+                        "required": true
+                    },
+                    {
+                        "name": "use_relative_xpath",
+                        "type": "boolean",
+                        "description": "是否使用相对XPath",
+                        "required": false
+                    },
+                    {
+                        "name": "export_to_excel",
+                        "type": "boolean",
+                        "description": "是否导出到Excel",
+                        "required": false
+                    }
+                ],
+                "input_parameters": [
+                    {
+                        "name": "fields",
+                        "input": {
+                            "type": "array",
+                            "value": {
+                                "type": "literal",
+                                "content": [
+                                    {
+                                        "name": "标题",
+                                        "xpath": "/html/body/div[4]/div/div[2]/div/div[3]/div/h1",
+                                        "extractor_type": "TextFieldExtractor"
+                                    },
+                                    {
+                                        "name": "摘要",
+                                        "xpath": "/html/body/div[4]/div/div[2]/div/div[3]/div/div[1]",
+                                        "extractor_type": "TextFieldExtractor"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "export_to_excel",
+                        "input": {
+                            "type": "boolean",
+                            "value": {
+                                "type": "literal",
+                                "content": false
+                            }
+                        }
+                    }
+                ]
+            },
+            "outputs": {
+                "output_defs": [
+                    {
+                        "name": "data",
+                        "type": "array",
+                        "description": "提取的数据结果"
+                    },
+                    {
+                        "name": "result_count",
+                        "type": "integer",
+                        "description": "提取的数据数量"
+                    }
+                ]
+            }
+        }
+    ]
+} 

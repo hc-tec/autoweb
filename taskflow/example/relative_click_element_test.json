@@ -1,4 +1,5 @@
-[
+{
+    "flow": [
     {
         "block": "StartBlock",
         "name": "开始块"
@@ -41,8 +42,9 @@
         "block": "EndBlock",
         "name": "结束块",
         "inners": []
-    }
-]
+        }
+    ]
+}
 
 
 

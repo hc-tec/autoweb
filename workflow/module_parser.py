@@ -2,7 +2,7 @@ import json
 from typing import Dict, Any, Type, Optional
 from .module import (
     Module, AtomicModule, CompositeModule, SlotModule,
-    EventTriggerModule, ModuleMeta, ModuleType
+    EventTriggerModule, PythonCodeModule, ModuleMeta, ModuleType
 )
 from .module_port import (
     ModuleInputs, ModuleOutputs, InputDefinition, OutputDefinition,
@@ -37,6 +37,38 @@ class ModuleParser:
         "any": ValueType.ANY
     }
     
+    # 自定义模块类型映射
+    CUSTOM_MODULE_MAP = {}
+    
+    @classmethod
+    def register_module_type(cls, module_type_name: str, module_class: Type[Module]):
+        """
+        注册自定义模块类型
+        
+        Args:
+            module_type_name: 模块类型名称
+            module_class: 模块类
+        """
+        cls.CUSTOM_MODULE_MAP[module_type_name] = module_class
+        
+    @classmethod
+    def get_module_class(cls, module_type: str) -> Optional[Type[Module]]:
+        """
+        获取模块类
+        
+        Args:
+            module_type: 模块类型
+            
+        Returns:
+            模块类
+        """
+        # 先检查内置模块类型
+        if module_type in cls.MODULE_TYPE_MAP:
+            return cls.MODULE_TYPE_MAP[module_type]
+            
+        # 再检查自定义模块类型
+        return cls.CUSTOM_MODULE_MAP.get(module_type)
+    
     @classmethod
     def parse_module(cls, json_data: Dict[str, Any]) -> Module:
         """解析模块配置
@@ -62,13 +94,15 @@ class ModuleParser:
             if module_type == ModuleType.ATOMIC and "event_config" in json_data:
                 # 特殊处理事件触发模块
                 module = cls._create_event_trigger_module(module_id, json_data)
+            elif module_type == ModuleType.ATOMIC and "python_code" in json_data:
+                # 如果有python_code字段，创建Python代码模块
+                module = cls._create_python_code_module(module_id, json_data)
             else:
-                # 创建其他类型模块
-                module_class = cls.MODULE_TYPE_MAP.get(module_type)
+                module_class = cls.get_module_class(module_type)
                 if not module_class:
                     raise ModuleParseError(f"Unknown module type: {module_type}")
                 module = module_class(module_id)
-            
+        
             # 解析元数据
             if "meta" in json_data:
                 meta = cls._parse_meta(json_data["meta"])
@@ -210,6 +244,19 @@ class ModuleParser:
             event_name=event_config["event_name"],
             event_data=event_config.get("event_data", {})
         )
+    
+    @classmethod
+    def _create_python_code_module(cls, module_id: str, json_data: Dict[str, Any]) -> PythonCodeModule:
+        """创建Python代码模块"""
+        python_code = json_data["python_code"]
+        code = python_code.get("code", "")
+        description = python_code.get("description", "")
+        
+        module = PythonCodeModule(module_id)
+        if code:
+            module.set_code(code, description)
+        
+        return module
     
     @classmethod
     def load_from_file(cls, file_path: str) -> Module:

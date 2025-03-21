@@ -40,30 +40,6 @@ class BlockContext:
         """获取变量值"""
         return self.variable_manager.get_variable_value(name)
 
-    def push_scope(self):
-        """创建新的作用域"""
-        self.variable_manager.push_scope()
-
-    def pop_scope(self):
-        """弹出当前作用域"""
-        self.variable_manager.pop_scope()
-
-    def add_dependency(self, var_name: str, depends_on: str):
-        """添加变量依赖关系"""
-        self.variable_manager.add_dependency(var_name, depends_on)
-
-    def remove_dependency(self, var_name: str, depends_on: str):
-        """移除变量依赖关系"""
-        self.variable_manager.remove_dependency(var_name, depends_on)
-
-    def get_dependencies(self, var_name: str) -> Set[str]:
-        """获取变量的所有依赖"""
-        return self.variable_manager.get_dependencies(var_name)
-
-    def get_dependents(self, var_name: str) -> Set[str]:
-        """获取变量的所有被依赖"""
-        return self.variable_manager.get_dependents(var_name)
-
     def set_readonly(self, var_name: str, readonly: bool):
         """设置变量只读状态"""
         self.variable_manager.set_readonly(var_name, readonly)

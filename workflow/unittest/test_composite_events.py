@@ -3,6 +3,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import unittest
+import asyncio
 from typing import Dict, Any
 from workflow.module_visualizer import ModuleVisualizer
 
@@ -62,7 +63,7 @@ class SimpleModule(AtomicModule):
         
         self.set_outputs(ModuleOutputs(outputDefs=output_defs))
     
-    def execute(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         """执行模块逻辑"""
         if not self.context:
             return ModuleExecutionResult(
@@ -125,7 +126,7 @@ class DataProviderModule(AtomicModule):
         self.set_inputs(ModuleInputs(inputDefs=[], inputParameters=[]))
         self.set_outputs(ModuleOutputs(outputDefs=output_defs))
     
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         """执行模块逻辑"""
         # 存储数据到上下文
         self.context.set_variable(self.module_id, "data", self.data)
@@ -174,7 +175,7 @@ class DataProcessorModule(AtomicModule):
         
         self.set_outputs(ModuleOutputs(outputDefs=output_defs))
 
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         """执行模块逻辑"""
         # 获取输入数据
         data = self.context.get_variable(self.module_id, "data")
@@ -221,7 +222,7 @@ class ErrorHandlerModule(AtomicModule):
         self.set_inputs(ModuleInputs(inputDefs=input_defs, inputParameters=[]))
         self.set_outputs(ModuleOutputs(outputDefs=output_defs))
         
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         error_message = self.context.get_variable(self.module_id, "error_message")
         handled_message = f"已处理错误: {error_message}"
         
@@ -269,7 +270,7 @@ class DataValidatorModule(AtomicModule):
         self.set_inputs(ModuleInputs(inputDefs=input_defs, inputParameters=[]))
         self.set_outputs(ModuleOutputs(outputDefs=output_defs))
         
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         data = self.context.get_variable(self.module_id, "data")
         
         # 简单的验证逻辑：检查数据是否包含特定关键词
@@ -278,7 +279,7 @@ class DataValidatorModule(AtomicModule):
         
         if not is_valid:
             # 触发错误事件
-            self.trigger_event("validation_error", {"error_message": "数据验证失败"})
+            await self.trigger_event("validation_error", {"error_message": "数据验证失败"})
             
         return ModuleExecutionResult(
             success=True,
@@ -289,7 +290,7 @@ class DataValidatorModule(AtomicModule):
         )
 
 
-class TestCompositeEvents(unittest.TestCase):
+class TestCompositeEvents(unittest.IsolatedAsyncioTestCase):
     """测试组合模块和事件系统"""
     
     # def test_simple_composite_execution(self):
@@ -425,7 +426,7 @@ class TestCompositeEvents(unittest.TestCase):
     #     trigger_result = modules_results[1]
     #     self.assertTrue(trigger_result.success)
 
-    def test_complex_data_pipeline(self):
+    async def test_complex_data_pipeline(self):
         """测试复杂的数据处理流水线"""
         # 创建主流水线
         pipeline = CompositeModule("main_pipeline")
@@ -581,7 +582,7 @@ class TestCompositeEvents(unittest.TestCase):
         ModuleVisualizer.print_tree(pipeline)
         
         # 执行流水线
-        result = pipeline.execute()
+        result = await pipeline.execute()
         
         # 验证结果
         self.assertTrue(result.success)

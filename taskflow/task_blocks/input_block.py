@@ -1,9 +1,7 @@
 import logging
-from typing import Dict
+from typing import Dict, Any
 
 from selenium.webdriver.remote.webelement import WebElement
-
-from taskflow.block_context import BlockContext
 
 from taskflow.task_blocks.block import Block, BlockExecuteParams, register_block
 
@@ -15,16 +13,11 @@ def _input(element: WebElement, input_value: str):
 
 class InputBlock(Block):
 
-    def __init__(self, name: str,
-                 context: BlockContext,
-                 xpath: str,
-                 input_value: str = "",
-                 use_loop_item: bool = False,
-                 **kwargs):
-        super().__init__(name, context)
-        self.xpath = xpath
-        self.input_value = input_value
-        self.use_loop_item = use_loop_item
+    def __init__(self, params: Dict[str, Any]):
+        super().__init__(params)
+        self.xpath = params.get("xpath", '')
+        self.input_value = params.get("input_value", '')
+        self.use_loop_item = params.get("use_loop_item", False)
 
     def execute(self, params: BlockExecuteParams) -> any:
         if self.use_relative_xpath:

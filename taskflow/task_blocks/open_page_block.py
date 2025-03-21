@@ -1,17 +1,15 @@
 import logging
-from typing import Dict
-
-from taskflow.block_context import BlockContext
+from typing import Dict, Any
 
 from taskflow.task_blocks.block import Block, BlockExecuteParams, register_block
 
 
 class OpenPageBlock(Block):
 
-    def __init__(self, name: str, page_url: str, context: BlockContext, fullscreen: bool = False, **kwargs):
-        super().__init__(name, context)
-        self._page_url = page_url
-        self._fullscreen = fullscreen
+    def __init__(self, params: Dict[str, Any]):
+        super().__init__(params)
+        self._page_url = params.get("page_url", '')
+        self._fullscreen = params.get("fullscreen", False)
 
     def execute(self, params: BlockExecuteParams):
         self.browser.open_page(self._page_url)

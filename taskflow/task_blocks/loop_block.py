@@ -1,7 +1,6 @@
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
-from taskflow.block_context import BlockContext
 from taskflow.task_blocks.block import Block, BlockExecuteParams, register_block
 from taskflow.task_blocks.loop_type import LoopType, get_loop_type
 
@@ -21,9 +20,9 @@ class LoopControl:
 
 class LoopBlock(Block, LoopControl):
 
-    def __init__(self, name: str, context: BlockContext, **kwargs):
+    def __init__(self, params: Dict[str, Any]):
         LoopControl.__init__(self)
-        Block.__init__(self, name, context)
+        super().__init__(params)
         self.loop_type: Optional[LoopType] = None
 
     def set_loop_type(self, loop_type: LoopType):

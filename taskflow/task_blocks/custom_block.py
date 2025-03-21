@@ -1,15 +1,14 @@
 
 from abc import abstractmethod
-from typing import Optional
+from typing import Dict, Any, Optional
 
 from browser.browser_automation import BrowserAutomation
-from taskflow.block_context import BlockContext
 from taskflow.task_blocks.block import Block, BlockExecuteParams, register_block
 
 
 class CustomTool:
-    def __init__(self, name: str):
-        self.name = name
+    def __init__(self, params: Dict[str, Any]):
+        self.name = params.get("name", "")
 
     @abstractmethod
     def execute(self, block: Block, params: BlockExecuteParams):
@@ -18,8 +17,8 @@ class CustomTool:
 
 class CustomBlock(Block):
 
-    def __init__(self, name: str, context: BlockContext, **kwargs):
-        super().__init__(name, context)
+    def __init__(self, params: Dict[str, Any]):
+        super().__init__(params)
         self.tool: Optional[CustomTool] = None
 
     def execute(self, params: BlockExecuteParams):

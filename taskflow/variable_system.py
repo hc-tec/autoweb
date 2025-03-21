@@ -9,7 +9,6 @@ class VariableType(Enum):
     NUMBER = "number"
     BOOLEAN = "boolean"
     LIST = "list"
-    DICT = "dict"
     OBJECT = "object"
 
 
@@ -27,8 +26,6 @@ class Variable:
         self.value = value
         self.type = var_type
         self.scope = scope
-        self.dependencies: Set[str] = set()  # 依赖的其他变量名
-        self.dependents: Set[str] = set()     # 依赖此变量的其他变量名
         self.is_readonly = False
         self.description = ""
         
@@ -44,22 +41,6 @@ class Variable:
         """获取变量值"""
         return self.value
         
-    def add_dependency(self, var_name: str):
-        """添加依赖"""
-        self.dependencies.add(var_name)
-        
-    def add_dependent(self, var_name: str):
-        """添加被依赖"""
-        self.dependents.add(var_name)
-        
-    def remove_dependency(self, var_name: str):
-        """移除依赖"""
-        self.dependencies.discard(var_name)
-        
-    def remove_dependent(self, var_name: str):
-        """移除被依赖"""
-        self.dependents.discard(var_name)
-        
     def set_readonly(self, readonly: bool):
         """设置只读状态"""
         self.is_readonly = readonly
@@ -73,7 +54,6 @@ class VariableManager:
     """变量管理器"""
     def __init__(self):
         self.variables: Dict[str, Variable] = {}
-        self.scope_stack: list[Set[str]] = []  # 作用域栈，用于管理局部变量
         
     def create_variable(self, name: str, value: Any, var_type: VariableType, 
                        scope: VariableScope = VariableScope.LOCAL) -> Variable:
@@ -83,9 +63,6 @@ class VariableManager:
             
         var = Variable(name, value, var_type, scope)
         self.variables[name] = var
-        
-        if scope == VariableScope.LOCAL and self.scope_stack:
-            self.scope_stack[-1].add(name)
             
         return var
         
@@ -103,45 +80,7 @@ class VariableManager:
     def get_variable_value(self, name: str) -> Any:
         """获取变量值"""
         var = self.get_variable(name)
-        return var.get_value() if var else None
-        
-    def push_scope(self):
-        """创建新的作用域"""
-        self.scope_stack.append(set())
-        
-    def pop_scope(self):
-        """弹出当前作用域，并清理其中的局部变量"""
-        if self.scope_stack:
-            current_scope = self.scope_stack.pop()
-            for var_name in current_scope:
-                if var_name in self.variables:
-                    del self.variables[var_name]
-                    
-    def add_dependency(self, var_name: str, depends_on: str):
-        """添加变量依赖关系"""
-        var = self.get_variable(var_name)
-        dep_var = self.get_variable(depends_on)
-        if var and dep_var:
-            var.add_dependency(depends_on)
-            dep_var.add_dependent(var_name)
-            
-    def remove_dependency(self, var_name: str, depends_on: str):
-        """移除变量依赖关系"""
-        var = self.get_variable(var_name)
-        dep_var = self.get_variable(depends_on)
-        if var and dep_var:
-            var.remove_dependency(depends_on)
-            dep_var.remove_dependent(var_name)
-            
-    def get_dependencies(self, var_name: str) -> Set[str]:
-        """获取变量的所有依赖"""
-        var = self.get_variable(var_name)
-        return var.dependencies if var else set()
-        
-    def get_dependents(self, var_name: str) -> Set[str]:
-        """获取变量的所有被依赖"""
-        var = self.get_variable(var_name)
-        return var.dependents if var else set()
+        return var.get_value() if var else None 
         
     def set_readonly(self, var_name: str, readonly: bool):
         """设置变量只读状态"""

@@ -98,9 +98,7 @@ class ModuleContext:
         
     def resolve_port_value(self, port_value: PortValue) -> Any:
         """解析端口值"""
-        if port_value.value.type == ValueSourceType.LITERAL:
-            return port_value.value.content
-        elif port_value.value.type == ValueSourceType.REF:
+        if port_value.value.type == ValueSourceType.REF:
             ref = port_value.value.content
             if not isinstance(ref, ReferenceValue):
                 raise ValueError(f"Invalid reference value: {ref}")

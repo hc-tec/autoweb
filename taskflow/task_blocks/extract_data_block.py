@@ -86,9 +86,11 @@ class ExtractDataBlock(Block):
         def on_field_extracted(self, field: Field):
             ...
 
-    def __init__(self, name: str, context: BlockContext, **kwargs):
-        super().__init__(name, context)
+    def __init__(self, params: Dict[str, Any]):
+        super().__init__(params)
+        self.fields: List[Dict] = params.get("fields", [])
         self.field_list: List[Field] = []
+        self.export_to_excel: bool = params.get("export_to_excel", False)
         self.field_observer: Optional[ExtractDataBlock.Delegate] = None
 
     def set_field_observer(self, field_observer: 'ExtractDataBlock.Delegate'):
@@ -109,7 +111,7 @@ class ExtractDataBlock(Block):
                 "value": value
             })
             
-        # 如果需要输出到变量系统
+        # 输出到变量系统
         if "results" in self.output_variables:
             params.set_variable("results", results)
             

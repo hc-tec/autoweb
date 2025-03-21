@@ -1,26 +1,18 @@
 import logging
-from typing import Dict, List, Optional
-
-from taskflow.block_context import BlockContext
+from typing import Dict, List, Any
 
 from taskflow.task_blocks.block import Block, BlockExecuteParams, register_block
 
 
 class ClickElementBlock(Block):
 
-    def __init__(self,
-                 name: str,
-                 context: BlockContext,
-                 xpath: str = "",
-                 coordinates: Optional[List[float]] = None,
-                 need_track=True,
-                 **kwargs):
-        super().__init__(name, context)
-        self.xpath = xpath
-        self.coordinates = coordinates
-        self.need_track = need_track
-        self.use_relative_xpath = False
-        self.use_coordinates = coordinates is not None
+    def __init__(self, params: Dict[str, Any]):
+        super().__init__(params)
+        self.xpath = params.get("xpath", '')
+        self.coordinates = params.get("coordinates", None)
+        self.need_track = params.get("need_track", True)
+        self.use_relative_xpath = params.get("use_relative_xpath", False)
+        self.use_coordinates = self.coordinates is not None
 
     def click(self, xpath: str):
         if self.need_track:

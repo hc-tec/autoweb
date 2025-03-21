@@ -22,7 +22,7 @@
             "type": "string",
             "value": {
               "type": "literal",
-              "content": "测试数据 #123"
+              "content": "测试数据 #123error"
             }
           }
         }

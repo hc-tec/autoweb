@@ -1,13 +1,13 @@
 from abc import abstractmethod
+from typing import Dict, Any
 
-from taskflow.block_context import BlockContext
 from taskflow.task_blocks.block import Block, BlockExecuteParams, register_block
 
 
 class ConditionBlock(Block):
 
-    def __init__(self, name: str, context: BlockContext, **kwargs):
-        Block.__init__(self, name, context)
+    def __init__(self, params: Dict[str, Any]):
+        Block.__init__(self, params)
 
     @abstractmethod
     def should_run(self, params: BlockExecuteParams) -> bool:
@@ -20,8 +20,8 @@ class ConditionBlock(Block):
 
 class PassConditionBlock(ConditionBlock):
 
-    def __init__(self, name: str, context: BlockContext, **kwargs):
-        ConditionBlock.__init__(self, name, context)
+    def __init__(self, params: Dict[str, Any]):
+        ConditionBlock.__init__(self, params)
 
     def should_run(self, params: BlockExecuteParams) -> bool:
         return True
@@ -29,9 +29,9 @@ class PassConditionBlock(ConditionBlock):
 
 class ExecJavaScriptConditionBlock(ConditionBlock):
 
-    def __init__(self, name: str, context: BlockContext, js_script: str, **kwargs):
-        ConditionBlock.__init__(self, name, context)
-        self.js_script = js_script
+    def __init__(self, params: Dict[str, Any]):
+        ConditionBlock.__init__(self, params)
+        self.js_script = params.get("js_script", '')
 
     def should_run(self, params: BlockExecuteParams) -> bool:
         loop_item_element = params.get_loop_item_element(self.depth - 1)

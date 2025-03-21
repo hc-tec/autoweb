@@ -90,12 +90,12 @@ class BlockBase(ABC):
 
 
 class Block(BlockBase):
-    def __init__(self, name: str, context: BlockContext):
-        self.name = name
-        self.xpath = ''
-        self.depth = 0
-        self.use_relative_xpath = False
-        self.context: BlockContext = context
+    def __init__(self, params: Dict[str, Any]):
+        self.name = params.get("name", "")
+        self.xpath = params.get("xpath", '')
+        self.depth = params.get("depth", 0)
+        self.use_relative_xpath = params.get("use_relative_xpath", False)
+        self.context: BlockContext = params.get("context", None)
         self.inners: List[BlockBase] = []
         self.next_block: Optional[BlockBase] = None
         self.outer: Optional[BlockBase] = None
@@ -122,23 +122,24 @@ class Block(BlockBase):
                 self.wait_for_continue()
             
         # 处理输入变量
-        for var_name in self.input_variables:
-            var = self.context.get_variable(var_name)
-            if var:
-                params.set_variable(var_name, var.get_value())
-            else:
-                logging.warning(f"输入变量 {var_name} 未定义")
+        # for var_name in self.input_variables:
+        #     var = self.context.get_variable(var_name)
+        #     if var:
+        #         params.set_variable(var_name, var.get_value())
+        #     else:
+        #         logging.warning(f"输入变量 {var_name} 未定义")
             
         self.before_execute(params)
+        
         self.execute_result = self.execute(params)
         params.exec_result = self.execute_result
         
         # 处理输出变量
-        for var_name in self.output_variables:
-            if var_name in params.variables:
-                self.context.set_variable_value(var_name, params.variables[var_name])
-            else:
-                logging.warning(f"输出变量 {var_name} 未在execute中设置")
+        # for var_name in self.output_variables:
+        #     if var_name in params.variables:
+        #         self.context.set_variable_value(var_name, params.variables[var_name])
+        #     else:
+        #         logging.warning(f"输出变量 {var_name} 未在execute中设置")
                 
         self.after_execute(params)
 
@@ -233,4 +234,4 @@ class BlockFactory:
         block_class = BLOCK_MAP.get(block_type, None)
         if block_class is None:
             raise Exception("Block type {} not found".format(block_type))
-        return block_class(context=self.context, **params)
+        return block_class(params)

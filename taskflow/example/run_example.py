@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 import sys
 import os
 
@@ -257,7 +258,9 @@ def coordinate_click_test():
 def json_variable_test():
     """使用JSON配置测试变量系统"""
     # 加载并解析JSON流程
-    control_flow = JsonFlowParser("./test/variable_system_test.json").parse(debug_mode=True)
+    current_dir = Path(__file__).parent
+    workflow_file = current_dir / "relative_click_element_test.json"
+    control_flow = JsonFlowParser(workflow_file).parse(debug_mode=True)
     
     # 获取初始变量值
     context = control_flow.get_context()

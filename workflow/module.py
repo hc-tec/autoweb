@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Any, Callable, Set, Union
 from dataclasses import dataclass, field
-from .module_port import ModuleInputs, ModuleOutputs
+from .module_port import ModuleInputs, ModuleOutputs, ValueSourceType
 from .module_context import ModuleContext, ModuleExecutionResult
 from .module_types import Args, Output, CodeFunction
 import asyncio
@@ -85,7 +85,7 @@ class Module:
             return False
         return True
         
-    def execute(self) -> ModuleExecutionResult:
+    async def execute(self) -> ModuleExecutionResult:
         """执行模块逻辑 - 模板方法
         
         这是一个模板方法，定义了模块执行的通用流程:
@@ -114,7 +114,7 @@ class Module:
             self._resolve_inputs()
             
             # 调用具体的执行逻辑(由子类实现)
-            result = self._execute_internal()
+            result = await self._execute_internal()
             
             # 将输出导出到父上下文
             parent_context = self.context.get_parent_context()
@@ -130,15 +130,18 @@ class Module:
     def _resolve_inputs(self):
         """解析输入参数并存储到上下文"""
         parent_context = self.context.get_parent_context()
-        if parent_context and self.inputs and self.inputs.inputParameters:
+        if self.inputs and self.inputs.inputParameters:
             for param in self.inputs.inputParameters:
                 try:
-                    value = parent_context.resolve_port_value(param.input)
+                    if param.input.value.type == ValueSourceType.LITERAL:
+                        value = param.input.value.content
+                    else:
+                        value = parent_context.resolve_port_value(param.input)
                     self.context.set_variable(self.module_id, param.name, value)
                 except Exception as e:
                     print(f"Warning: Failed to resolve input parameter {param.name}: {str(e)}")
             
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         """实际的执行逻辑，由子类实现"""
         raise NotImplementedError("Module must implement _execute_internal method")
         
@@ -232,7 +235,7 @@ class AtomicModule(Module):
     def __init__(self, module_id: str):
         super().__init__(module_id, ModuleType.ATOMIC)
         
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         """执行模块逻辑
         
         原子模块需要重写此方法，实现具体的业务逻辑
@@ -275,7 +278,7 @@ class SlotModule(Module):
         self.modules.append(module)
         return True
         
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         """执行插槽中的所有模块"""
         child_results = []
         
@@ -285,7 +288,7 @@ class SlotModule(Module):
             module.set_context(self.context)
             
             # 执行子模块
-            result = module.execute()
+            result = await module.execute()
             child_results.append(result)
             
             # 如果子模块执行失败且需要中断，则停止执行后续模块
@@ -338,7 +341,7 @@ class CompositeModule(Module):
             slot = self.add_slot(slot_name)
         return slot.add_module(module)
         
-    def trigger_event(self, event_name: str, event_data: Dict[str, Any] = None) -> ModuleExecutionResult:
+    async def trigger_event(self, event_name: str, event_data: Dict[str, Any] = None) -> ModuleExecutionResult:
         """触发事件
         
         Args:
@@ -370,7 +373,7 @@ class CompositeModule(Module):
                     self.context.set_variable(self.module_id, f"event_{key}", value)
                 
         # 执行插槽
-        result = slot.execute()
+        result = await slot.execute()
         
         return ModuleExecutionResult(
             success=result.success,
@@ -398,7 +401,7 @@ class CompositeModule(Module):
                 
         return True
         
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         """执行组合模块
         
         组合模块的执行过程是按照顺序执行普通子模块，事件插槽则通过事件触发执行。
@@ -413,7 +416,7 @@ class CompositeModule(Module):
             module.set_context(child_context)
             
             # 执行模块
-            result = module.execute()
+            result = await module.execute()
             modules_results.append(result)
             
             # 如果模块执行失败且需要中断，则停止执行后续模块
@@ -468,7 +471,7 @@ class EventTriggerModule(AtomicModule):
         """设置事件数据"""
         self.event_data = event_data
         
-    def _execute_internal(self) -> ModuleExecutionResult:
+    async def _execute_internal(self) -> ModuleExecutionResult:
         """执行事件触发逻辑"""
         # 首先从上下文中解析事件数据
         event_data = {}
@@ -488,7 +491,7 @@ class EventTriggerModule(AtomicModule):
         while parent:
             if isinstance(parent, CompositeModule):
                 # 调用父模块的事件触发方法
-                result = parent.trigger_event(self.event_name, merged_event_data)
+                result = await parent.trigger_event(self.event_name, merged_event_data)
                 
                 # 记录事件触发结果
                 return ModuleExecutionResult(
