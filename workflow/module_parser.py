@@ -1,7 +1,7 @@
 import json
 from typing import Dict, Any, Type, Optional
 from .module import (
-    Module, AtomicModule, CompositeModule, SlotModule,
+    Module, AtomicModule, CompositeModule, SlotModule, CustomModule,
     EventTriggerModule, PythonCodeModule, ModuleMeta, ModuleType
 )
 from .module_port import (
@@ -23,7 +23,8 @@ class ModuleParser:
     MODULE_TYPE_MAP = {
         ModuleType.ATOMIC: AtomicModule,
         ModuleType.COMPOSITE: CompositeModule,
-        ModuleType.SLOT: SlotModule
+        ModuleType.SLOT: SlotModule,
+        ModuleType.CUSTOM: CustomModule  # 添加自定义模块类型
     }
     
     # 值类型映射
@@ -129,15 +130,11 @@ class ModuleParser:
                 # 解析插槽
                 if "slots" in json_data:
                     for slot_name, slot_data in json_data["slots"].items():
-                        slot = module.add_slot(
-                            slot_name,
-                            slot_data.get("description", "")
-                        )
-                        # 解析插槽中的模块
-                        if "modules" in slot_data:
-                            for slot_module_data in slot_data["modules"]:
-                                slot_module = cls.parse_module(slot_module_data)
-                                slot.add_module(slot_module)
+                        # 新的插槽逻辑：每个slot是一个完整的组合模块
+                        # 创建一个组合模块作为插槽
+                        slot_module = cls.parse_module(slot_data)
+                        # 添加到插槽
+                        module.add_module_to_slot(slot_name, slot_module)
                                 
             return module
             

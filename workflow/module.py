@@ -335,11 +335,38 @@ class CompositeModule(Module):
         return self.slots.get(slot_name)
         
     def add_module_to_slot(self, slot_name: str, module: Module) -> bool:
-        """向指定事件插槽添加模块"""
-        slot = self.get_slot(slot_name)
-        if not slot:
+        """向指定事件插槽添加模块
+        
+        如果插槽不存在，会自动创建一个新的插槽。
+        如果传入的是一个组合模块，则直接作为插槽。
+        
+        Args:
+            slot_name: 插槽名称
+            module: 要添加的模块
+            
+        Returns:
+            是否添加成功
+        """
+        # 如果插槽已存在
+        if slot_name in self.slots:
+            slot = self.slots[slot_name]
+            module.parent = slot
+            slot.modules.append(module)
+            return True
+            
+        # 如果插槽不存在，创建并添加模块
+        if isinstance(module, CompositeModule):
+            # 对于组合模块，直接将其作为插槽
+            slot_id = f"{self.module_id}_slot_{slot_name}"
+            # 为组合模块设置新的ID以符合插槽命名规范
+            module.module_id = slot_id
+            module.parent = self
+            self.slots[slot_name] = module
+            return True
+        else:
+            # 对于非组合模块，创建一个新的插槽并添加模块
             slot = self.add_slot(slot_name)
-        return slot.add_module(module)
+            return slot.add_module(module)
         
     async def trigger_event(self, event_name: str, event_data: Dict[str, Any] = None) -> ModuleExecutionResult:
         """触发事件
@@ -638,3 +665,24 @@ class PythonCodeModule(AtomicModule):
                 outputs={},
                 error=f"Code execution failed: {str(e)}"
             )
+
+
+class CustomModule(CompositeModule):
+    """自定义模块
+    
+    自定义模块是组合模块的扩展，允许使用更多高级功能，如插槽系统。
+    与普通组合模块不同，自定义模块的插槽可以是任意复杂的组合模块。
+    这提供了更强的组件化和模块复用能力。
+    """
+    
+    def __init__(self, module_id: str):
+        super().__init__(module_id)
+        self.module_type = ModuleType.CUSTOM  # 覆盖模块类型为CUSTOM
+    
+    async def _execute_internal(self) -> ModuleExecutionResult:
+        """执行自定义模块
+        
+        自定义模块的执行逻辑与组合模块类似，但可能包含更复杂的逻辑。
+        """
+        # 调用基类的执行逻辑
+        return await super()._execute_internal()
