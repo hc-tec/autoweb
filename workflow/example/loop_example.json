@@ -1,0 +1,258 @@
+{
+    "module_id": "loop_example",
+    "module_type": "composite",
+    "meta": {
+        "title": "循环示例",
+        "description": "演示如何使用循环模块",
+        "category": "example"
+    },
+    "inputs": {
+        "input_defs": []
+    },
+    "outputs": {
+        "output_defs": []
+    },
+    "modules": [
+        {
+            "module_id": "create_array",
+            "module_type": "python_code",
+            "meta": {
+                "title": "创建数组",
+                "description": "创建一个示例数组用于循环",
+                "category": "code"
+            },
+            "python_code": {
+                "code": "def main(args):\n    # 创建一个示例数组\n    data = [\n        {\"name\": \"张三\", \"age\": 28, \"city\": \"北京\"},\n        {\"name\": \"李四\", \"age\": 32, \"city\": \"上海\"},\n        {\"name\": \"王五\", \"age\": 45, \"city\": \"广州\"},\n        {\"name\": \"赵六\", \"age\": 19, \"city\": \"深圳\"},\n        {\"name\": \"孙七\", \"age\": 36, \"city\": \"杭州\"}\n    ]\n    return {\"data\": data}",
+                "description": "创建一个包含人员信息的数组"
+            },
+            "inputs": {
+                "input_defs": []
+            },
+            "outputs": {
+                "output_defs": [
+                    {
+                        "name": "data",
+                        "type": "array",
+                        "description": "人员数据数组"
+                    }
+                ]
+            }
+        },
+        {
+            "module_id": "people_loop",
+            "module_type": "loop",
+            "meta": {
+                "title": "遍历人员",
+                "description": "遍历数组中的每个人员",
+                "category": "control"
+            },
+            "inputs": {
+                "input_defs": [
+                    {
+                        "name": "array",
+                        "type": "array",
+                        "description": "要循环的数组",
+                        "required": true
+                    }
+                ],
+                "input_parameters": [
+                    {
+                        "name": "array",
+                        "input": {
+                            "type": "array",
+                            "value": {
+                                "type": "reference",
+                                "content": {
+                                    "moduleID": "create_array",
+                                    "name": "data"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "outputs": {
+                "output_defs": [
+                    {
+                        "name": "iterations",
+                        "type": "integer",
+                        "description": "循环次数"
+                    },
+                    {
+                        "name": "results",
+                        "type": "array",
+                        "description": "所有迭代的结果"
+                    }
+                ]
+            },
+            "slots": {
+                "loop_body": {
+                    "module_id": "process_person",
+                    "module_type": "slot",
+                    "meta": {
+                        "title": "处理人员信息",
+                        "description": "处理单个人员的信息",
+                        "category": "loop_body"
+                    },
+                    "inputs": {
+                        "input_defs": [],
+                        "input_parameters": []
+                    },
+                    "outputs": {
+                        "output_defs": [
+                            {
+                                "name": "index",
+                                "type": "integer",
+                                "description": "当前循环索引"
+                            },
+                            {
+                                "name": "item",
+                                "type": "object",
+                                "description": "当前循环项"
+                            }
+                        ]
+                    },
+                    "modules": [
+                        {
+                            "module_id": "process_item",
+                            "module_type": "python_code",
+                            "meta": {
+                                "title": "处理人员",
+                                "description": "处理单个人员数据",
+                                "category": "code"
+                            },
+                            "python_code": {
+                                "code": "def main(args):\n    # 从上下文获取当前索引和元素\n    try:\n        # 获取当前循环的索引和项目\n        index = args.params.get('index', -1)\n        person = args.params.get('item', {})\n        \n        # 处理人员数据\n        result = {\n            \"index\": index,\n            \"full_name\": f\"{person.get('name')}_{index}\",\n            \"age_next_year\": person.get('age', 0) + 1,\n            \"location\": person.get('city', 'Unknown'),\n            \"is_adult\": person.get('age', 0) >= 18\n        }\n        \n        print(f\"处理第 {index} 个人员: {person.get('name')}\")\n        \n        return {\"processed_item\": result}\n    except Exception as e:\n        print(f\"处理人员时出错: {str(e)}\")\n        return {\"error\": str(e)}",
+                                "description": "处理人员数据并生成新的格式"
+                            },
+                            "inputs": {
+                                "input_defs": [
+                                    {
+                                        "name": "index",
+                                        "type": "integer",
+                                        "description": "当前循环索引",
+                                        "required": true
+                                    },
+                                    {
+                                        "name": "item",
+                                        "type": "object",
+                                        "description": "当前循环项",
+                                        "required": true
+                                    }
+                                ],
+                                "input_parameters": [
+                                    {
+                                        "name": "index",
+                                        "input": {
+                                            "type": "integer",
+                                            "value": {
+                                                "type": "reference",
+                                                "content": {
+                                                    "moduleID": "process_person",
+                                                    "name": "index"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "item",
+                                        "input": {
+                                            "type": "object",
+                                            "value": {
+                                                "type": "reference",
+                                                "content": {
+                                                    "moduleID": "process_person",
+                                                    "name": "item"
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "outputs": {
+                                "output_defs": [
+                                    {
+                                        "name": "processed_item",
+                                        "type": "object",
+                                        "description": "处理后的人员信息"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "module_id": "display_results",
+            "module_type": "python_code",
+            "meta": {
+                "title": "显示结果",
+                "description": "显示循环处理的结果",
+                "category": "code"
+            },
+            "python_code": {
+                "code": "def main(args):\n    # 获取循环结果\n    results = args.params.get('results', [])\n    iterations = args.params.get('iterations', 0)\n    \n    print(f\"\\n循环执行了 {iterations} 次，处理了 {len(results)} 个项目\")\n    print(\"处理结果:\")\n    for i, result in enumerate(results):\n        processed = result.get('processed_item', {})\n        print(f\"  {i+1}. {processed.get('full_name')} - {processed.get('age_next_year')}岁 - {processed.get('location')}\")\n    \n    return {\"success\": True, \"message\": f\"成功处理 {len(results)} 个项目\"}",
+                "description": "显示所有处理后的结果"
+            },
+            "inputs": {
+                "input_defs": [
+                    {
+                        "name": "results",
+                        "type": "array",
+                        "description": "循环处理结果",
+                        "required": true
+                    },
+                    {
+                        "name": "iterations",
+                        "type": "integer",
+                        "description": "循环次数",
+                        "required": true
+                    }
+                ],
+                "input_parameters": [
+                    {
+                        "name": "results",
+                        "input": {
+                            "type": "array",
+                            "value": {
+                                "type": "reference",
+                                "content": {
+                                    "moduleID": "people_loop",
+                                    "name": "results"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "iterations",
+                        "input": {
+                            "type": "integer",
+                            "value": {
+                                "type": "reference",
+                                "content": {
+                                    "moduleID": "people_loop",
+                                    "name": "iterations"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "outputs": {
+                "output_defs": [
+                    {
+                        "name": "success",
+                        "type": "boolean",
+                        "description": "是否成功显示"
+                    },
+                    {
+                        "name": "message",
+                        "type": "string",
+                        "description": "结果消息"
+                    }
+                ]
+            }
+        }
+    ]
+} 

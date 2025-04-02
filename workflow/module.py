@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Any, Callable, Set, Union
 from dataclasses import dataclass, field
-from .module_port import ModuleInputs, ModuleOutputs, ValueSourceType
+from .module_port import ModuleInputs, ModuleOutputs, ValueSourceType, InputDefinition, OutputDefinition, ValueType
 from .module_context import ModuleContext, ModuleExecutionResult
 from .module_types import Args, Output, CodeFunction
 import asyncio
@@ -23,13 +23,12 @@ class ModuleType:
     """模块类型"""
     ATOMIC = "atomic"  # 原子模块，有自己的执行逻辑
     COMPOSITE = "composite"  # 组合模块，仅执行子模块
+    SLOT_CONTAINER = "slot_container"
     SLOT = "slot"  # 插槽模块，作为特定插入点
-
-
-class SlotType:
-    """插槽类型"""
-    NORMAL = "normal"  # 普通插槽，用于组合模块
-    EVENT = "event"    # 事件插槽，用于响应事件
+    EVENT_TRIGGER = "event_trigger"  # 事件触发模块，用于触发事件
+    PYCODE = "python_code"
+    LOOP = "loop"  # 循环模块，用于循环执行子模块
+    LOOP_BODY = "loop_body"  # 循环体模块，用于定义循环内执行的内容
 
 
 @dataclass
@@ -38,8 +37,6 @@ class ModuleSlot:
     name: str  # 插槽名称
     description: str  # 插槽描述
     required: bool = False  # 是否必须填充
-    multiple: bool = False  # 是否允许多个模块
-    slot_type: str = SlotType.NORMAL  # 插槽类型
     modules: List["Module"] = field(default_factory=list)  # 插入的模块列表
 
 
@@ -113,6 +110,10 @@ class Module:
             # 解析输入参数并存储到上下文 (如果有)
             self._resolve_inputs()
             
+            # 打印模块信息
+            if self.meta:
+                print(f"模块: {self.meta.title}, 模块ID: {self.module_id}")
+
             # 调用具体的执行逻辑(由子类实现)
             result = await self._execute_internal()
             
@@ -128,18 +129,44 @@ class Module:
             self.context.exit_scope()
             
     def _resolve_inputs(self):
-        """解析输入参数并存储到上下文"""
+        """解析输入参数并存储到上下文
+        
+        处理各种类型的输入参数，包括嵌套引用结构
+        """
         parent_context = self.context.get_parent_context()
-        if self.inputs and self.inputs.inputParameters:
-            for param in self.inputs.inputParameters:
-                try:
-                    if param.input.value.type == ValueSourceType.LITERAL:
-                        value = param.input.value.content
-                    else:
-                        value = parent_context.resolve_port_value(param.input)
-                    self.context.set_variable(self.module_id, param.name, value)
-                except Exception as e:
-                    print(f"Warning: Failed to resolve input parameter {param.name}: {str(e)}")
+        if not parent_context:
+            return
+            
+        if not self.inputs or not self.inputs.inputParameters:
+            return
+            
+        # 收集必需参数名称，用于错误处理
+        required_params = set()
+        if self.inputs.inputDefs:
+            for input_def in self.inputs.inputDefs:
+                if input_def.required:
+                    required_params.add(input_def.name)
+        
+        # 处理所有输入参数
+        for param in self.inputs.inputParameters:
+            try:
+                # 根据值类型解析
+                if param.input.value.type == ValueSourceType.LITERAL:
+                    value = param.input.value.content
+                else:
+                    # 使用上下文解析引用值
+                    value = parent_context.resolve_port_value(param.input)
+                    
+                # 设置到当前模块的上下文中
+                self.context.set_variable(self.module_id, param.name, value)
+                
+            except Exception as e:
+                # 如果是必需参数，则抛出异常
+                if param.name in required_params:
+                    raise ValueError(f"必需参数 '{param.name}' 解析失败: {str(e)}")
+                # 否则仅记录警告
+                import logging
+                logging.warning(f"模块 {self.module_id}: 参数 '{param.name}' 解析失败: {str(e)}")
             
     async def _execute_internal(self) -> ModuleExecutionResult:
         """实际的执行逻辑，由子类实现"""
@@ -247,63 +274,7 @@ class AtomicModule(Module):
         )
 
 
-class SlotModule(Module):
-    """插槽模块
-    
-    插槽模块作为组合模块中的特定插入点，可以包含一系列子模块。
-    当组合模块执行到插槽模块时，会依次执行插槽中的所有子模块。
-    """
-    
-    def __init__(self, module_id: str, slot_name: str, description: str = ""):
-        super().__init__(module_id, ModuleType.SLOT)
-        self.slot_name = slot_name
-        self.description = description
-        self.modules: List[Module] = []  # 插槽中的模块列表
-        
-        # 设置元数据
-        meta = ModuleMeta(
-            title=f"插槽: {slot_name}",
-            description=description or f"插槽 {slot_name}",
-            category="slot"
-        )
-        self.set_meta(meta)
-        
-        # 设置默认的空输入输出
-        self.set_inputs(ModuleInputs(inputDefs=[], inputParameters=[]))
-        self.set_outputs(ModuleOutputs(outputDefs=[]))
-        
-    def add_module(self, module: Module) -> bool:
-        """添加模块到插槽"""
-        module.parent = self
-        self.modules.append(module)
-        return True
-        
-    async def _execute_internal(self) -> ModuleExecutionResult:
-        """执行插槽中的所有模块"""
-        child_results = []
-        
-        # 依次执行插槽中的所有模块
-        for module in self.modules:
-            # 为每个子模块设置同样的上下文
-            module.set_context(self.context)
-            
-            # 执行子模块
-            result = await module.execute()
-            child_results.append(result)
-            
-            # 如果子模块执行失败且需要中断，则停止执行后续模块
-            if not result.success and result.error and getattr(result, 'stop_on_error', False):
-                break
-                
-        success = all(result.success for result in child_results)
-        
-        return ModuleExecutionResult(
-            success=success,
-            outputs={},  # 插槽本身不产生输出
-            child_results={self.slot_name: child_results}
-        )
-
-
+# SlotContainer is belong to CompositeModule
 class CompositeModule(Module):
     """组合模块
     
@@ -311,9 +282,9 @@ class CompositeModule(Module):
     普通子模块按顺序执行，而事件插槽在触发时执行。
     """
     
-    def __init__(self, module_id: str):
-        super().__init__(module_id, ModuleType.COMPOSITE)
-        self.slots: Dict[str, SlotModule] = {}  # 事件插槽字典
+    def __init__(self, module_id: str, module_type = ModuleType.COMPOSITE):
+        super().__init__(module_id, module_type)
+        self.slots: Dict[str, any] = {}  # 事件插槽字典
         self.modules: List[Module] = []  # 普通子模块列表
         
     def add_module(self, module: Module) -> bool:
@@ -322,15 +293,14 @@ class CompositeModule(Module):
         self.modules.append(module)
         return True
         
-    def add_slot(self, slot_name: str, description: str = "") -> SlotModule:
+    def add_slot(self, slot_name: str, description: str = ""):
         """添加事件插槽"""
-        slot_id = f"{self.module_id}_slot_{slot_name}"
-        slot = SlotModule(slot_id, slot_name, description)
+        slot = SlotModule(slot_name)
         slot.parent = self
         self.slots[slot_name] = slot
         return slot
         
-    def get_slot(self, slot_name: str) -> Optional[SlotModule]:
+    def get_slot(self, slot_name: str):
         """获取指定名称的事件插槽"""
         return self.slots.get(slot_name)
         
@@ -357,16 +327,9 @@ class CompositeModule(Module):
         # 如果插槽不存在，创建并添加模块
         if isinstance(module, CompositeModule):
             # 对于组合模块，直接将其作为插槽
-            slot_id = f"{self.module_id}_slot_{slot_name}"
-            # 为组合模块设置新的ID以符合插槽命名规范
-            module.module_id = slot_id
             module.parent = self
             self.slots[slot_name] = module
             return True
-        else:
-            # 对于非组合模块，创建一个新的插槽并添加模块
-            slot = self.add_slot(slot_name)
-            return slot.add_module(module)
         
     async def trigger_event(self, event_name: str, event_data: Dict[str, Any] = None) -> ModuleExecutionResult:
         """触发事件
@@ -469,6 +432,18 @@ class CompositeModule(Module):
             outputs=outputs,
             child_results={"modules": modules_results}
         )
+
+
+
+class SlotModule(CompositeModule):
+    """插槽模块
+    
+    插槽模块作为组合模块中的特定插入点，可以包含一系列子模块。
+    当组合模块执行到插槽模块时，会依次执行插槽中的所有子模块。
+    """
+    
+    def __init__(self, module_id: str):
+        super().__init__(module_id, ModuleType.SLOT)
 
 
 class EventTriggerModule(AtomicModule):
@@ -641,10 +616,10 @@ class PythonCodeModule(AtomicModule):
             args = Args(params=params)
             
             # 执行main函数
-            if self.code_function.is_async:
-                result = await main_func(args)
-            else:
-                result = main_func(args)
+            # if self.code_function.is_async:
+            result = await main_func(args)
+            # else:
+            #     result = main_func(args)
                 
             # 验证输出
             if not isinstance(result, dict):
@@ -686,3 +661,143 @@ class CustomModule(CompositeModule):
         """
         # 调用基类的执行逻辑
         return await super()._execute_internal()
+
+
+class LoopModule(CompositeModule):
+    """循环模块
+    
+    循环模块接收一个数组作为输入，并基于数组的长度进行循环。
+    在每次循环中，循环模块会将当前的索引和元素传递给循环体。
+    """
+    
+    def __init__(self, module_id: str):
+        super().__init__(module_id, ModuleType.LOOP)
+        self.loop_array = []  # 循环数组
+        self.loop_body_slot_name = "loop_body"
+        # 设置默认的输入输出定义
+        self.create_default_config()
+        
+    def create_default_config(self):
+        """创建默认的配置"""
+        # 设置输入定义
+        input_defs = [
+            InputDefinition(
+                name="array",
+                type=ValueType.ARRAY,
+                description="要循环的数组",
+                required=True
+            ),
+            InputDefinition(
+                name="continue_on_error",
+                type=ValueType.BOOLEAN,
+                description="循环体执行失败时是否继续",
+                required=False,
+                defaultValue=True
+            )
+        ]
+        
+        # 设置输出定义
+        output_defs = [
+            OutputDefinition(
+                name="iterations",
+                type=ValueType.INTEGER,
+                description="循环次数"
+            ),
+            OutputDefinition(
+                name="results",
+                type=ValueType.ARRAY,
+                description="所有成功迭代的结果数组"
+            )
+        ]
+        
+        # 设置输入输出
+        self.set_inputs(ModuleInputs(inputDefs=input_defs, inputParameters=[]))
+        self.set_outputs(ModuleOutputs(outputDefs=output_defs))
+        
+        # 设置元数据
+        self.set_meta(ModuleMeta(
+            title="循环模块",
+            description="基于数组执行循环操作",
+            category="control",
+            tags=["loop", "iteration", "control-flow"]
+        ))
+        
+    def get_loop_body_slot(self) -> Optional[Module]:
+        """获取循环体插槽"""
+        return self.slots.get(self.loop_body_slot_name)
+        
+    async def _execute_internal(self) -> ModuleExecutionResult:
+        """执行循环模块
+        
+        循环执行插槽中的模块，并在每次循环中传递当前的索引和元素。
+        """
+        # 获取循环数组
+        try:
+            # 尝试从上下文中获取数组参数
+            self.loop_array = self.context.get_variable(self.module_id, "array")
+            if not isinstance(self.loop_array, list):
+                return ModuleExecutionResult(
+                    success=False,
+                    outputs={},
+                    error=f"输入参数 'array' 不是有效的数组"
+                )
+        except Exception as e:
+            return ModuleExecutionResult(
+                success=False,
+                outputs={},
+                error=f"无法获取输入数组: {str(e)}"
+            )
+        
+        # 获取错误处理选项
+        try:
+            continue_on_error = self.context.get_variable(self.module_id, "continue_on_error")
+        except:
+            # 默认为True
+            continue_on_error = True
+            
+        # 获取循环体插槽
+        loop_body = self.get_loop_body_slot()
+        if not loop_body:
+            return ModuleExecutionResult(
+                success=False,
+                outputs={},
+                error="循环体插槽未定义"
+            )
+            
+        # 存储循环结果
+        loop_results = []
+        all_success = True
+        
+        # 遍历数组执行循环
+        for index, item in enumerate(self.loop_array):
+            # 创建新的循环上下文
+            loop_context = self._create_child_context(loop_body, self.context)
+            
+            # 设置循环索引和元素到上下文
+            self.context.set_variable(self.module_id, "index", index)
+            self.context.set_variable(self.module_id, "item", item)
+            
+            # 为循环体设置上下文
+            loop_body.set_context(loop_context)
+            
+            # 执行循环体
+            result = await loop_body.execute()
+            loop_results.append(result)
+            
+            # 如果循环体执行失败，根据设置决定是否继续
+            if not result.success:
+                all_success = False
+                if not continue_on_error:
+                    break
+        
+        # 收集所有循环体的输出
+        combined_outputs = {
+            "iterations": len(self.loop_array),
+            "results": [result.outputs for result in loop_results if result.success]
+        }
+        
+        return ModuleExecutionResult(
+            success=all_success,
+            outputs=combined_outputs,
+            child_results={"loop_iterations": loop_results}
+        )

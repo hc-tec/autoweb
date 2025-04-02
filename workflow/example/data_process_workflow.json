@@ -66,7 +66,7 @@
               "input": {
                 "type": "string",
                 "value": {
-                  "type": "ref",
+                  "type": "reference",
                   "content": {
                     "moduleID": "main_pipeline",
                     "name": "initial_data",
@@ -110,7 +110,7 @@
                   "input": {
                     "type": "string",
                     "value": {
-                      "type": "ref",
+                      "type": "reference",
                       "content": {
                         "moduleID": "data_collection",
                         "name": "data",
@@ -160,7 +160,7 @@
                   "input": {
                     "type": "string",
                     "value": {
-                      "type": "ref",
+                      "type": "reference",
                       "content": {
                         "moduleID": "data_provider",
                         "name": "data",
@@ -209,7 +209,7 @@
               "input": {
                 "type": "string",
                 "value": {
-                  "type": "ref",
+                  "type": "reference",
                   "content": {
                     "moduleID": "data_collection",
                     "name": "processed_data",
@@ -258,7 +258,7 @@
                   "input": {
                     "type": "string",
                     "value": {
-                      "type": "ref",
+                      "type": "reference",
                       "content": {
                         "moduleID": "validation_stage",
                         "name": "data",

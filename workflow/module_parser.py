@@ -2,7 +2,7 @@ import json
 from typing import Dict, Any, Type, Optional
 from .module import (
     Module, AtomicModule, CompositeModule, SlotModule, CustomModule,
-    EventTriggerModule, PythonCodeModule, ModuleMeta, ModuleType
+    EventTriggerModule, PythonCodeModule, ModuleMeta, ModuleType, LoopModule
 )
 from .module_port import (
     ModuleInputs, ModuleOutputs, InputDefinition, OutputDefinition,
@@ -23,8 +23,9 @@ class ModuleParser:
     MODULE_TYPE_MAP = {
         ModuleType.ATOMIC: AtomicModule,
         ModuleType.COMPOSITE: CompositeModule,
+        ModuleType.SLOT_CONTAINER: CompositeModule,
         ModuleType.SLOT: SlotModule,
-        ModuleType.CUSTOM: CustomModule  # 添加自定义模块类型
+        ModuleType.LOOP: LoopModule,
     }
     
     # 值类型映射
@@ -92,10 +93,10 @@ class ModuleParser:
                 raise ModuleParseError("Missing module_id or module_type")
                 
             # 创建模块实例
-            if module_type == ModuleType.ATOMIC and "event_config" in json_data:
+            if module_type == ModuleType.EVENT_TRIGGER:
                 # 特殊处理事件触发模块
                 module = cls._create_event_trigger_module(module_id, json_data)
-            elif module_type == ModuleType.ATOMIC and "python_code" in json_data:
+            elif module_type == ModuleType.PYCODE:
                 # 如果有python_code字段，创建Python代码模块
                 module = cls._create_python_code_module(module_id, json_data)
             else:
@@ -134,6 +135,7 @@ class ModuleParser:
                         # 创建一个组合模块作为插槽
                         slot_module = cls.parse_module(slot_data)
                         # 添加到插槽
+                        slot_module.meta.title = slot_name
                         module.add_module_to_slot(slot_name, slot_module)
                                 
             return module
@@ -208,22 +210,48 @@ class ModuleParser:
     
     @classmethod
     def _parse_port_value(cls, value_data: Dict[str, Any]) -> PortValue:
-        """解析端口值"""
+        """解析端口值
+        
+        根据值类型和来源类型，选择适当的解析策略
+        
+        Args:
+            value_data: 值数据
+            
+        Returns:
+            解析后的端口值
+        """
+        from .module_port import ReferenceResolver
+        
+        # 确定值的类型和来源类型
         value_type = cls.VALUE_TYPE_MAP[value_data["type"]]
         value_source_type = ValueSourceType(value_data["value"]["type"])
         
+        # 根据来源类型处理内容
         if value_source_type == ValueSourceType.LITERAL:
+            # 字面量值直接使用
             content = value_data["value"]["content"]
-        elif value_source_type == ValueSourceType.REF:
-            ref_data = value_data["value"]["content"]
-            content = ReferenceValue(
-                moduleID=ref_data["moduleID"],
-                name=ref_data["name"],
-                source=ref_data.get("source", "block-output")
-            )
-        else:
-            raise ModuleParseError(f"Unknown value source type: {value_source_type}")
             
+            # 为数组和对象类型的字面量值执行额外的验证
+            if value_type == ValueType.ARRAY and not isinstance(content, list):
+                raise ModuleParseError(f"无效的数组字面量值: {content}")
+                
+            if value_type == ValueType.OBJECT and not isinstance(content, dict):
+                raise ModuleParseError(f"无效的对象字面量值: {content}")
+                
+        elif value_source_type == ValueSourceType.REF:
+            # 引用值需要根据类型进行特定处理
+            ref_data = value_data["value"]["content"]
+            
+            try:
+                # 使用类型感知的引用解析器处理引用
+                content = ReferenceResolver.process_reference(ref_data, value_type)
+            except ValueError as e:
+                raise ModuleParseError(f"解析引用值失败 (类型: {value_type.value}): {str(e)}")
+                
+        else:
+            raise ModuleParseError(f"不支持的值来源类型: {value_source_type.value}")
+            
+        # 创建并返回端口值
         return PortValue(
             type=value_type,
             value=ValueContent(
@@ -245,8 +273,8 @@ class ModuleParser:
     @classmethod
     def _create_python_code_module(cls, module_id: str, json_data: Dict[str, Any]) -> PythonCodeModule:
         """创建Python代码模块"""
-        python_code = json_data["python_code"]
-        code = python_code.get("code", "")
+        python_code = json_data["code"]
+        code = python_code.get("python_code", "")
         description = python_code.get("description", "")
         
         module = PythonCodeModule(module_id)

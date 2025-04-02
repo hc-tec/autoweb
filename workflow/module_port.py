@@ -17,7 +17,7 @@ class ValueType(enum.Enum):
 class ValueSourceType(enum.Enum):
     """值来源类型枚举"""
     LITERAL = "literal"  # 字面量
-    REF = "ref"  # 引用其他模块的输出
+    REF = "reference"  # 引用其他模块的输出
 
 
 @dataclass
@@ -123,3 +123,122 @@ class InputHelper:
             module_id,
             output_name
         )
+
+class ReferenceResolver:
+    """引用解析器
+    
+    专门用于处理各种类型的引用解析，针对不同类型采用不同的解析策略
+    """
+    
+    @staticmethod
+    def is_reference_object(obj: Any) -> bool:
+        """检查对象是否是引用对象"""
+        return (isinstance(obj, dict) and 
+                "type" in obj and 
+                "content" in obj and 
+                obj["type"] in ["reference", "ref"])
+    
+    @staticmethod
+    def create_reference_value(ref_data: Dict[str, Any]) -> ReferenceValue:
+        """从引用数据创建ReferenceValue对象"""
+        return ReferenceValue(
+            moduleID=ref_data["moduleID"],
+            name=ref_data["name"],
+            source=ref_data.get("source", "block-output")
+        )
+    
+    @classmethod
+    def process_reference(cls, ref_data: Any, value_type: ValueType) -> Any:
+        """根据值类型处理引用
+        
+        为不同类型的值选择适当的解析策略
+        
+        Args:
+            ref_data: 引用数据
+            value_type: 值类型
+            
+        Returns:
+            处理后的引用结构
+        """
+        # 根据类型选择不同的处理方法
+        if value_type == ValueType.ARRAY:
+            return cls._process_array_reference(ref_data)
+        elif value_type == ValueType.OBJECT:
+            return cls._process_object_reference(ref_data)
+        else:
+            # 基本类型(String, Integer等)的引用
+            return cls._process_basic_reference(ref_data)
+    
+    @classmethod
+    def _process_basic_reference(cls, ref_data: Any) -> ReferenceValue:
+        """处理基本类型的引用
+        
+        对于String, Integer等基本类型，直接创建引用对象
+        """
+        if isinstance(ref_data, dict) and "moduleID" in ref_data and "name" in ref_data:
+            return cls.create_reference_value(ref_data)
+        else:
+            raise ValueError(f"无效的基本类型引用数据: {ref_data}")
+    
+    @classmethod
+    def _process_array_reference(cls, ref_data: Any) -> List:
+        """处理数组类型的引用
+        
+        数组可能是包含引用的列表，也可能是单个引用指向一个数组
+        """
+        # 单个引用指向一个数组
+        if isinstance(ref_data, dict) and "moduleID" in ref_data and "name" in ref_data:
+            return cls.create_reference_value(ref_data)
+            
+        # 列表形式的引用数据，处理数组内的每个元素
+        if isinstance(ref_data, list):
+            return [cls._process_element_in_array(item) for item in ref_data]
+            
+        raise ValueError(f"无效的数组引用数据: {ref_data}")
+    
+    @classmethod
+    def _process_element_in_array(cls, element: Any) -> Any:
+        """处理数组中的元素
+        
+        数组中的元素可以是简单值、引用或包含嵌套引用的对象
+        """
+        # 如果元素本身是引用
+        if cls.is_reference_object(element):
+            return cls._process_basic_reference(element["content"])
+            
+        # 如果元素是对象，需要递归处理其中的引用
+        if isinstance(element, dict):
+            result = {}
+            for key, value in element.items():
+                if cls.is_reference_object(value):
+                    # 字段值是引用
+                    result[key] = cls._process_basic_reference(value["content"])
+                else:
+                    # 字段值不是引用
+                    result[key] = value
+            return result
+            
+        # 简单值直接返回
+        return element
+    
+    @classmethod
+    def _process_object_reference(cls, ref_data: Any) -> Dict:
+        """处理对象类型的引用
+        
+        对象可能是包含引用字段的字典，也可能是单个引用指向一个对象
+        """
+        # 如果是单个引用，则原样返回
+        if isinstance(ref_data, dict) and "moduleID" in ref_data and "name" in ref_data:
+            return cls.create_reference_value(ref_data)
+            
+        # 如果是包含引用字段的字典，处理每个字段
+        if isinstance(ref_data, dict):
+            result = {}
+            for key, value in ref_data.items():
+                if cls.is_reference_object(value):
+                    result[key] = cls._process_basic_reference(value["content"])
+                else:
+                    result[key] = value
+            return result
+            
+        raise ValueError(f"无效的对象引用数据: {ref_data}")

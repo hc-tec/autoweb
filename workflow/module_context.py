@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-from .module_port import PortValue, ValueSourceType, ReferenceValue
+from .module_port import PortValue, ValueSourceType, ReferenceValue, ValueType
 
 
 @dataclass
@@ -97,14 +97,104 @@ class ModuleContext:
         return self._execution_results.get(module_id)
         
     def resolve_port_value(self, port_value: PortValue) -> Any:
-        """解析端口值"""
-        if port_value.value.type == ValueSourceType.REF:
-            ref = port_value.value.content
-            if not isinstance(ref, ReferenceValue):
-                raise ValueError(f"Invalid reference value: {ref}")
-            return self.get_variable(ref.moduleID, ref.name)
+        """解析端口值
+        
+        根据端口值的类型和来源类型进行解析
+        
+        Args:
+            port_value: 端口值
+            
+        Returns:
+            解析后的实际值
+        """
+        # 获取值类型和来源类型
+        value_type = port_value.type
+        source_type = port_value.value.type
+        
+        # 根据来源类型处理
+        if source_type == ValueSourceType.LITERAL:
+            # 字面量值直接返回
+            return port_value.value.content
+            
+        elif source_type == ValueSourceType.REF:
+            # 引用值需要根据类型进行解析
+            ref_value = port_value.value.content
+            return self._resolve_reference_value(ref_value, value_type)
+            
         else:
-            raise ValueError(f"Unknown value type: {port_value.value.type}")
+            raise ValueError(f"不支持的值来源类型: {source_type.value}")
+    
+    def _resolve_reference_value(self, ref_value: Any, value_type: ValueType) -> Any:
+        """解析引用值
+        
+        根据值类型选择合适的解析策略
+        
+        Args:
+            ref_value: 引用值
+            value_type: 值类型
+            
+        Returns:
+            解析后的实际值
+        """
+        # 根据引用值的类型和值类型进行解析
+        if isinstance(ref_value, ReferenceValue):
+            # 简单引用，直接获取变量
+            return self._resolve_simple_reference(ref_value)
+            
+        elif isinstance(ref_value, list) and value_type == ValueType.ARRAY:
+            # 处理数组中的每个元素
+            return self._resolve_array_elements(ref_value)
+            
+        elif isinstance(ref_value, dict) and value_type == ValueType.OBJECT:
+            # 处理对象中的每个字段
+            return self._resolve_object_fields(ref_value)
+            
+        else:
+            # 其他情况，可能是结构与类型不匹配
+            raise ValueError(f"引用值结构 {type(ref_value).__name__} 与类型 {value_type.value} 不匹配")
+            
+    def _resolve_simple_reference(self, ref: ReferenceValue) -> Any:
+        """解析简单引用"""
+        return self.get_variable(ref.moduleID, ref.name)
+        
+    def _resolve_array_elements(self, elements: List) -> List:
+        """解析数组中的元素"""
+        result = []
+        for item in elements:
+            if isinstance(item, ReferenceValue):
+                # 元素是引用
+                result.append(self._resolve_simple_reference(item))
+            elif isinstance(item, dict):
+                # 元素是对象，需要处理其中的引用字段
+                resolved_item = {}
+                for key, value in item.items():
+                    if isinstance(value, ReferenceValue):
+                        resolved_item[key] = self._resolve_simple_reference(value)
+                    else:
+                        resolved_item[key] = value
+                result.append(resolved_item)
+            else:
+                # 元素是基本类型
+                result.append(item)
+        return result
+        
+    def _resolve_object_fields(self, obj: Dict) -> Dict:
+        """解析对象中的字段"""
+        result = {}
+        for key, value in obj.items():
+            if isinstance(value, ReferenceValue):
+                # 字段值是引用
+                result[key] = self._resolve_simple_reference(value)
+            elif isinstance(value, (list, dict)):
+                # 字段值是复杂结构，需要递归处理
+                if isinstance(value, list):
+                    result[key] = self._resolve_array_elements(value)
+                else:
+                    result[key] = self._resolve_object_fields(value)
+            else:
+                # 字段值是基本类型
+                result[key] = value
+        return result
             
     def create_execution_context(self, parent_variables: Dict[str, Any] = None) -> Dict[str, Any]:
         """创建执行上下文"""
