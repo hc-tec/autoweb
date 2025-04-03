@@ -51,44 +51,6 @@ cd autoweb
 pip install -r requirements.txt
 ```
 
-## 使用示例
-
-### 1. 创建简单工作流
-
-```python
-from workflow import Module, ModuleType, ModuleMeta
-from workflow.modules import InputModule, OutputModule, PythonCodeModule
-
-# 创建输入模块
-input_module = InputModule("workflow_input")
-input_module.add_input_variable("name", ValueType.STRING, "用户姓名", required=True)
-
-# 创建处理模块
-process_module = PythonCodeModule("process")
-process_module.set_code("""
-def process(inputs):
-    return {"greeting": f"Hello, {inputs['name']}!"}
-""")
-
-# 创建输出模块
-output_module = OutputModule("workflow_output")
-output_module.add_output_variable("greeting", ValueType.STRING, "问候语")
-
-# 设置模块连接
-process_module.set_input("name", input_module.get_output("name"))
-output_module.set_input("greeting", process_module.get_output("greeting"))
-```
-
-### 2. 使用循环模块
-
-```python
-from workflow.modules import LoopModule
-
-# 创建循环模块
-loop_module = LoopModule("loop")
-loop_module.set_loop_body(process_module)
-loop_module.set_input("items", input_module.get_output("items"))
-```
 
 ## 项目结构
 
