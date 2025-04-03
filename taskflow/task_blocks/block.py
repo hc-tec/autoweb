@@ -41,7 +41,7 @@ class BlockExecuteParams:
 
     def get_variable(self, name: str) -> Any:
         """获取变量值"""
-        return self.variables.get(name)
+        return self.variables.get(name, None)
 
     def __str__(self):
         return "BlockExecuteParams(exec_result={}, in_loop={}, current_loop={}, loop_item_list={}, " \
@@ -110,13 +110,16 @@ class Block(BlockBase):
         return self.context.browser
 
     def run(self, params: BlockExecuteParams):
-        logging.info("Run block: {}, params: {}".format(self.name, params))
+        logging.debug("Run block: {}".format(self.name))
         
         # 执行前等待
+        wait_time = params.get_variable("wait_time")
+        if wait_time and int(wait_time) > 0 and not self.breakpoint:
+            logging.info(f"等待 {wait_time} 秒后继续执行...")
+            time.sleep(int(wait_time))
+        
+        # 处理断点
         if self.context.is_debug_mode():
-            if self.wait_time > 0 and not self.breakpoint:
-                logging.info(f"等待 {self.wait_time} 秒后继续执行...")
-                time.sleep(self.wait_time)
             if self.breakpoint:
                 logging.info(f"遇到断点: {self.name}，按F9继续...")
                 self.wait_for_continue()

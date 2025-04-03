@@ -1,5 +1,8 @@
 import json
 from typing import Dict, Any, Type, Optional
+
+from workflow.modules.input_module import InputModule
+from workflow.modules.output_module import OutputModule
 from .module import (
     Module, AtomicModule, CompositeModule, SlotModule, CustomModule,
     EventTriggerModule, PythonCodeModule, ModuleMeta, ModuleType, LoopModule
@@ -26,6 +29,9 @@ class ModuleParser:
         ModuleType.SLOT_CONTAINER: CompositeModule,
         ModuleType.SLOT: SlotModule,
         ModuleType.LOOP: LoopModule,
+        ModuleType.WORKFLOW: CompositeModule,
+        ModuleType.INPUT_NODE: InputModule,
+        ModuleType.OUTPUT_NODE: OutputModule
     }
     
     # 值类型映射
@@ -212,7 +218,8 @@ class ModuleParser:
     def _parse_port_value(cls, value_data: Dict[str, Any]) -> PortValue:
         """解析端口值
         
-        根据值类型和来源类型，选择适当的解析策略
+        根据值类型和来源类型，选择适当的解析策略。支持复杂嵌套引用，
+        包括带有path和property字段的引用结构。
         
         Args:
             value_data: 值数据
@@ -243,8 +250,17 @@ class ModuleParser:
             ref_data = value_data["value"]["content"]
             
             try:
-                # 使用类型感知的引用解析器处理引用
+                # 使用类型感知的引用解析器处理引用，支持复杂嵌套引用
                 content = ReferenceResolver.process_reference(ref_data, value_type)
+                
+                # 确保处理过的引用包含了path和property等扩展字段
+                if isinstance(content, ReferenceValue):
+                    # 显式保留path和property字段
+                    if "path" in ref_data and not content.path:
+                        content.path = ref_data["path"]
+                    if "property" in ref_data and not content.property:
+                        content.property = ref_data["property"]
+                
             except ValueError as e:
                 raise ModuleParseError(f"解析引用值失败 (类型: {value_type.value}): {str(e)}")
                 

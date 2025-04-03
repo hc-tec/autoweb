@@ -79,7 +79,7 @@ if __name__ == "__main__":
     # 获取当前文件所在目录
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # JSON配置文件路径
-    json_file_path = os.path.join(current_dir, "json_workflow.json")
+    json_file_path = os.path.join(current_dir, "小红书搜索.json")
     
     # 运行示例
     asyncio.run(run_example(json_file_path)) 

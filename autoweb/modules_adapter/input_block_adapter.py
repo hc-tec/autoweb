@@ -25,7 +25,7 @@ class InputBlockAdapter(BlockModuleAdapter):
             
         # InputBlock 特定属性
         self.xpath = None      # 输入框的xpath
-        self.text = None       # 输入的文本
+        self.input_value = None       # 输入的文本
         self.clear_first = True  # 是否先清空输入框
             
         super().__init__(module_id, "InputBlock", block_name)
@@ -44,7 +44,7 @@ class InputBlockAdapter(BlockModuleAdapter):
                 required=True
             ),
             InputDefinition(
-                name="text",
+                name="input_value",
                 type=ValueType.STRING,
                 description="要输入的文本",
                 required=True
@@ -75,8 +75,8 @@ class InputBlockAdapter(BlockModuleAdapter):
         if "xpath" in args:
             self.xpath = args["xpath"]
             
-        if "text" in args:
-            self.text = args["text"]
+        if "input_value" in args:
+            self.text = args["input_value"]
             
         if "clear_first" in args:
             self.clear_first = args["clear_first"]
@@ -90,7 +90,7 @@ class InputBlockAdapter(BlockModuleAdapter):
         
         # 可以添加输入操作的额外信息
         if result.success:
-            result.outputs["input_text"] = self.text
+            result.outputs["input_text"] = self.input_value
             
             # 设置清空选项
             if self.block_instance and hasattr(self.block_instance, "set_clear_first"):

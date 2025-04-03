@@ -77,12 +77,23 @@ class ModuleOutputs:
 
 @dataclass
 class ReferenceValue:
-    """引用值"""
-    moduleID: str
-    name: str
-    source: str = "block-output"  # 默认引用其他模块的输出
+    """引用值
     
+    表示对另一个模块输出的引用。支持两种引用解析方式：
+    1. 常规模式：引用在同一作用域或父作用域中定义的变量
+    2. 冒泡模式：如果常规模式无法解析，将沿模块树向上查找变量
     
+    Notes:
+        冒泡模式只在常规模式失败时启用，可以通过Module.stop_bubble_propagation()
+        或ModuleContext.stop_bubble_propagation()来控制冒泡传播
+    """
+    moduleID: str  # 模块ID
+    name: str      # 变量名
+    path: Optional[str] = None  # 嵌套路径, 如 "a.b.c" 或 "items[0].name"
+    property: Optional[str] = None  # 直接属性名, 如 "id"
+    source: str = "block-output"  # 引用来源
+    
+
 class InputHelper:
     """输入帮助类"""
     
@@ -127,7 +138,8 @@ class InputHelper:
 class ReferenceResolver:
     """引用解析器
     
-    专门用于处理各种类型的引用解析，针对不同类型采用不同的解析策略
+    专门用于处理各种类型的引用解析，针对不同类型采用不同的解析策略，
+    支持处理路径表达式和属性访问等高级引用模式
     """
     
     @staticmethod
@@ -140,10 +152,15 @@ class ReferenceResolver:
     
     @staticmethod
     def create_reference_value(ref_data: Dict[str, Any]) -> ReferenceValue:
-        """从引用数据创建ReferenceValue对象"""
+        """从引用数据创建ReferenceValue对象
+        
+        支持标准字段(moduleID, name)和扩展字段(path, property)
+        """
         return ReferenceValue(
             moduleID=ref_data["moduleID"],
             name=ref_data["name"],
+            path=ref_data.get("path"),
+            property=ref_data.get("property"),
             source=ref_data.get("source", "block-output")
         )
     
@@ -173,7 +190,7 @@ class ReferenceResolver:
     def _process_basic_reference(cls, ref_data: Any) -> ReferenceValue:
         """处理基本类型的引用
         
-        对于String, Integer等基本类型，直接创建引用对象
+        对于String, Integer等基本类型，创建引用对象，支持path或property访问
         """
         if isinstance(ref_data, dict) and "moduleID" in ref_data and "name" in ref_data:
             return cls.create_reference_value(ref_data)
@@ -181,10 +198,11 @@ class ReferenceResolver:
             raise ValueError(f"无效的基本类型引用数据: {ref_data}")
     
     @classmethod
-    def _process_array_reference(cls, ref_data: Any) -> List:
+    def _process_array_reference(cls, ref_data: Any) -> Union[ReferenceValue, List]:
         """处理数组类型的引用
         
-        数组可能是包含引用的列表，也可能是单个引用指向一个数组
+        数组可能是包含引用的列表，也可能是单个引用指向一个数组，
+        或者是一个引用+path组合指向数组中的一个元素
         """
         # 单个引用指向一个数组
         if isinstance(ref_data, dict) and "moduleID" in ref_data and "name" in ref_data:
@@ -222,12 +240,13 @@ class ReferenceResolver:
         return element
     
     @classmethod
-    def _process_object_reference(cls, ref_data: Any) -> Dict:
+    def _process_object_reference(cls, ref_data: Any) -> Union[ReferenceValue, Dict]:
         """处理对象类型的引用
         
-        对象可能是包含引用字段的字典，也可能是单个引用指向一个对象
+        对象可能是包含引用字段的字典，也可能是单个引用指向一个对象，
+        或者是一个引用+property组合指向对象的一个属性
         """
-        # 如果是单个引用，则原样返回
+        # 如果是单个引用，则处理可能的path或property
         if isinstance(ref_data, dict) and "moduleID" in ref_data and "name" in ref_data:
             return cls.create_reference_value(ref_data)
             

@@ -13,6 +13,12 @@ from autoweb.modules_adapter.base_adapter import BlockModuleAdapter
 class ExtractDataBlockAdapter(BlockModuleAdapter):
     """ExtractDataBlock 适配器 - 从页面提取数据"""
     
+    # 预设的格式化器
+    FORMAT_DICT = "dict"     # 转换为字典格式 {"field1": "value1", "field2": "value2"}
+    FORMAT_LIST = "list"     # 转换为值列表 ["value1", "value2"]
+    FORMAT_ORIGINAL = "original"  # 保持原始格式 [{"name": "field1", "value": "value1"}, ...]
+    FORMAT_CUSTOM = "custom"      # 自定义格式化器
+    
     def __init__(self, module_id: str, block_name: str = None):
         """
         初始化 ExtractDataBlock 适配器
@@ -30,6 +36,8 @@ class ExtractDataBlockAdapter(BlockModuleAdapter):
         self.use_relative_xpath = False  # 是否使用相对XPath
         self.export_to_excel = False  # 是否导出到Excel
         self.field_saver = None  # 数据保存器
+        self.format_type = self.FORMAT_DICT  # 默认使用原始格式
+        self.custom_formatter_code = None  # 自定义格式化代码
             
         super().__init__(module_id, "ExtractDataBlock", block_name)
         
@@ -56,6 +64,18 @@ class ExtractDataBlockAdapter(BlockModuleAdapter):
                 name="export_to_excel",
                 type=ValueType.BOOLEAN,
                 description="是否导出到Excel",
+                required=True
+            ),
+            InputDefinition(
+                name="format_type",
+                type=ValueType.STRING,
+                description=f"结果格式化类型: {self.FORMAT_ORIGINAL}, {self.FORMAT_DICT}, {self.FORMAT_LIST}, {self.FORMAT_CUSTOM}",
+                required=False
+            ),
+            InputDefinition(
+                name="custom_formatter_code",
+                type=ValueType.STRING,
+                description="自定义格式化代码，需包含一个名为'format_result'的函数",
                 required=False
             )
         ]
@@ -63,9 +83,9 @@ class ExtractDataBlockAdapter(BlockModuleAdapter):
         # ExtractDataBlock 的输出定义
         output_defs = [
             OutputDefinition(
-                name="data",
-                type=ValueType.ARRAY,
-                description="提取的数据结果"
+                name="results",
+                type=ValueType.ANY,
+                description="格式化后的数据结果"
             ),
             OutputDefinition(
                 name="result_count",
@@ -97,8 +117,82 @@ class ExtractDataBlockAdapter(BlockModuleAdapter):
             
         if "export_to_excel" in args:
             self.export_to_excel = args["export_to_excel"]
+            
+        # 设置格式化类型
+        if "format_type" in args:
+            self.format_type = args["format_type"]
+            
+        # 设置自定义格式化代码
+        if "custom_formatter_code" in args:
+            self.custom_formatter_code = args["custom_formatter_code"]
         
         return params
+    
+    def _format_result(self, results: List[Dict[str, Any]]) -> Any:
+        """格式化结果
+        
+        根据format_type选择适当的格式化方法
+        
+        Args:
+            results: 原始结果列表
+            
+        Returns:
+            格式化后的结果
+        """
+        try:
+            if self.format_type == self.FORMAT_DICT:
+                # 转换为字典格式
+                return {item["name"]: item["value"] for item in results}
+                
+            elif self.format_type == self.FORMAT_LIST:
+                # 转换为值列表
+                return [item["value"] for item in results]
+                
+            elif self.format_type == self.FORMAT_CUSTOM and self.custom_formatter_code:
+                # 执行自定义格式化代码
+                return self._execute_custom_formatter(results)
+                
+            else:
+                # 默认保持原始格式
+                return results
+                
+        except Exception as e:
+            logging.error(f"格式化结果失败: {str(e)}")
+            # 出错时返回原始结果
+            return results
+    
+    def _execute_custom_formatter(self, results: List[Dict[str, Any]]) -> Any:
+        """执行自定义格式化代码
+        
+        执行用户提供的Python代码来格式化结果
+        
+        Args:
+            results: 原始结果列表
+            
+        Returns:
+            格式化后的结果
+        """
+        if not self.custom_formatter_code:
+            return results
+            
+        try:
+            # 创建本地环境
+            local_vars = {"results": results}
+            
+            # 编译并执行代码
+            exec(self.custom_formatter_code, {}, local_vars)
+            
+            # 检查是否定义了format_result函数
+            if "format_result" not in local_vars or not callable(local_vars["format_result"]):
+                logging.error("自定义格式化代码中未找到format_result函数")
+                return results
+                
+            # 调用format_result函数
+            return local_vars["format_result"](results)
+            
+        except Exception as e:
+            logging.error(f"执行自定义格式化代码失败: {str(e)}")
+            return results
     
     def _configure_block_instance(self, block: ExtractDataBlock):
         """配置Block实例"""
@@ -142,3 +236,27 @@ class ExtractDataBlockAdapter(BlockModuleAdapter):
     def _before_execute(self, block: Block, params: BlockExecuteParams):
         # 先配置Block实例
         self._configure_block_instance(block)
+        
+    async def _execute_internal(self) -> ModuleExecutionResult:
+        """执行Block逻辑，并处理结果格式化"""
+        # 调用父类方法执行Block
+        result = await super()._execute_internal()
+        
+        # 如果执行成功，处理结果格式化
+        if result.success and result.outputs and "results" in result.outputs:
+            try:
+                # 保存原始结果
+                raw_results = result.outputs["results"]
+                
+                # 格式化结果
+                formatted_results = self._format_result(raw_results)
+                
+                # 更新输出
+                result.outputs["results"] = formatted_results
+                result.outputs["raw_results"] = raw_results
+                
+            except Exception as e:
+                logging.error(f"处理结果格式化失败: {str(e)}")
+                # 保持原始输出不变
+                
+        return result

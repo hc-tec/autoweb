@@ -51,6 +51,7 @@ class ModuleContext:
         self._current_scope: Optional[ContextScope] = None
         self._execution_results: Dict[str, ModuleExecutionResult] = {}  # 存储模块执行结果
         self._parent_context = parent_context  # 父上下文
+        self._stop_bubble = False  # 是否停止变量冒泡
         
     def enter_scope(self, module_id: str):
         """进入模块作用域"""
@@ -99,7 +100,7 @@ class ModuleContext:
     def resolve_port_value(self, port_value: PortValue) -> Any:
         """解析端口值
         
-        根据端口值的类型和来源类型进行解析
+        根据端口值的类型和来源类型进行解析，支持复杂嵌套引用
         
         Args:
             port_value: 端口值
@@ -127,7 +128,7 @@ class ModuleContext:
     def _resolve_reference_value(self, ref_value: Any, value_type: ValueType) -> Any:
         """解析引用值
         
-        根据值类型选择合适的解析策略
+        根据值类型选择合适的解析策略，支持通过path或property访问嵌套属性
         
         Args:
             ref_value: 引用值
@@ -138,8 +139,11 @@ class ModuleContext:
         """
         # 根据引用值的类型和值类型进行解析
         if isinstance(ref_value, ReferenceValue):
-            # 简单引用，直接获取变量
-            return self._resolve_simple_reference(ref_value)
+            # 先获取基本引用值
+            base_value = self._resolve_simple_reference(ref_value)
+            
+            # 处理嵌套访问(如path或property)
+            return self._resolve_nested_access(base_value, ref_value)
             
         elif isinstance(ref_value, list) and value_type == ValueType.ARRAY:
             # 处理数组中的每个元素
@@ -152,7 +156,77 @@ class ModuleContext:
         else:
             # 其他情况，可能是结构与类型不匹配
             raise ValueError(f"引用值结构 {type(ref_value).__name__} 与类型 {value_type.value} 不匹配")
+    
+    def _resolve_nested_access(self, base_value: Any, ref: ReferenceValue) -> Any:
+        """解析嵌套访问
+        
+        处理通过path或property访问对象的嵌套属性
+        
+        Args:
+            base_value: 基础值
+            ref: 引用值对象，包含path或property等信息
             
+        Returns:
+            访问嵌套属性后的值
+        """
+        result = base_value
+        
+        # 处理property直接属性访问
+        # if ref.property and isinstance(result, dict):
+        #     if ref.property in result:
+        #         result = result[ref.property]
+        #     else:
+        #         raise KeyError(f"属性 '{ref.property}' 在对象中不存在")
+                
+        # 处理path路径访问 (如 "items[0].name")
+        if ref.path:
+            result = self._navigate_object_path(result, ref.path)
+            
+        return result
+    
+    def _navigate_object_path(self, obj: Any, path: str) -> Any:
+        """导航对象路径
+        
+        沿着路径表达式访问嵌套对象的属性
+        支持点号访问(obj.prop)和数组索引访问(obj[0])
+        
+        Args:
+            obj: 要导航的对象
+            path: 路径表达式
+            
+        Returns:
+            访问路径后的值
+        """
+        # 没有路径时直接返回对象
+        if not path:
+            return obj
+            
+        # 分割路径，支持点号(.)和数组索引([])
+        import re
+        # 匹配属性名或数组索引
+        parts = re.findall(r'(\w+)|\[(\d+)\]', path)
+        current = obj
+        
+        for part in parts[1:]:
+            prop_name, index = part
+            
+            if prop_name:  # 属性访问
+                if isinstance(current, dict) and prop_name in current:
+                    current = current[prop_name]
+                elif hasattr(current, prop_name):
+                    current = getattr(current, prop_name)
+                else:
+                    raise ValueError(f"属性 '{prop_name}' 在对象中不存在")
+                    
+            elif index:  # 数组索引访问
+                idx = int(index)
+                if isinstance(current, (list, tuple)) and 0 <= idx < len(current):
+                    current = current[idx]
+                else:
+                    raise ValueError(f"索引 {idx} 超出数组范围或对象不是数组")
+                    
+        return current
+        
     def _resolve_simple_reference(self, ref: ReferenceValue) -> Any:
         """解析简单引用"""
         return self.get_variable(ref.moduleID, ref.name)
@@ -170,6 +244,8 @@ class ModuleContext:
                 for key, value in item.items():
                     if isinstance(value, ReferenceValue):
                         resolved_item[key] = self._resolve_simple_reference(value)
+                    elif isinstance(value, dict) and value.get("type") == "literal":
+                        resolved_item[key] = value.get("content")
                     else:
                         resolved_item[key] = value
                 result.append(resolved_item)
@@ -207,3 +283,41 @@ class ModuleContext:
         """清空上下文"""
         self._current_scope = None
         self._execution_results.clear()
+
+    def get_module_output(self, module_id: str, output_name: str, bubble: bool = True) -> Any:
+        """获取指定模块的输出值，支持冒泡机制
+        
+        Args:
+            module_id: 模块ID
+            output_name: 输出名称
+            bubble: 是否启用冒泡机制(向上查找)
+            
+        Returns:
+            模块输出值，未找到时返回None
+            
+        Notes:
+            如果bubble为True，将按照以下顺序查找变量:
+            1. 当前作用域
+            2. 父上下文 (除非_stop_bubble=True)
+        """
+        try:
+            # 先在当前作用域查找
+            if self._current_scope:
+                return self._current_scope.get_variable(module_id, output_name)
+        except KeyError:
+            pass
+            
+        # 如果启用冒泡且有父上下文，向上查找
+        if bubble and self._parent_context and not self._stop_bubble:
+            return self._parent_context.get_module_output(module_id, output_name, bubble)
+            
+        # 未找到返回None
+        return None
+        
+    def stop_bubble_propagation(self):
+        """停止变量冒泡传播"""
+        self._stop_bubble = True
+        
+    def enable_bubble_propagation(self):
+        """启用变量冒泡传播"""
+        self._stop_bubble = False

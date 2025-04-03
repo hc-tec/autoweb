@@ -108,18 +108,22 @@ class BlockModuleAdapter(AtomicModule):
         }
     
     def get_input_params(self) -> Dict[str, Any]:
-        """获取输入参数"""
+        """获取输入参数
+        
+        直接从模块上下文中获取已解析的参数值
+        
+        Returns:
+            包含所有输入参数的字典
+        """
         input_data = {}
-        if self.inputs and self.inputs.inputParameters:
+        if self.inputs and self.inputs.inputParameters and self.context:
             for param in self.inputs.inputParameters:
                 try:
-                    # 获取输入值 - 直接从输入参数中获取，而不是通过不存在的方法
-                    value = None
-                    if param.input and hasattr(param.input, "value"):
-                        value = param.input.value.content
+                    # 直接从上下文中获取已解析的值
+                    value = self.context.get_variable(self.module_id, param.name)
                     input_data[param.name] = value
                 except Exception as e:
-                    logging.error(f"获取输入参数失败: {param.name}, 错误: {str(e)}")
+                    logging.error(f"从上下文获取参数失败: {param.name}, 错误: {str(e)}")
         return input_data
     
     # 子类在执行_execute_internal之前无法获取到输入参数，因此添加一个方法，方法子类重写
@@ -154,10 +158,10 @@ class BlockModuleAdapter(AtomicModule):
             self.block_instance.run(params)
             
             # 收集输出结果
-            outputs = {"result": True}  # 默认结果
+            outputs = {}  # 默认结果
             if params.exec_result is not None:
                 # 如果Block有明确的执行结果，使用它
-                outputs["result"] = params.exec_result
+                outputs["results"] = params.exec_result
                 
             # 添加其他变量作为输出
             for key, value in params.variables.items():
@@ -171,6 +175,6 @@ class BlockModuleAdapter(AtomicModule):
         except Exception as e:
             return ModuleExecutionResult(
                 success=False,
-                outputs={"result": False},
+                outputs={},
                 error=str(e)
             ) 

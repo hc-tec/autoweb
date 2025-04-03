@@ -43,7 +43,13 @@ class ClickElementBlockAdapter(BlockModuleAdapter):
                 type=ValueType.BOOLEAN,
                 description="是否跟踪页面变化",
                 required=False
-            )
+            ),
+            InputDefinition(
+                name="wait_time",
+                type=ValueType.INTEGER,
+                description="等待时间(秒)",
+                required=False
+            ),
         ]
         
         # ClickElementBlock 的输出定义
